@@ -1,18 +1,18 @@
 {
     "name": "gwenbot",
-    "version": "1.0.0",
-    "description": "Bot Twitch pour afficher les records Cemantix",
+    "version": "2.0.0",
+    "description": "GwenBot - Twitch bot & website for xsgwen",
     "main": "index.js",
     "scripts": {
-        "start": "node index.js"
+        "start": "node index.js",
+        "start:server": "node server.js",
+        "start:all": "node index.js & node server.js"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.90.0",
         "cookie-parser": "^1.4.7",
         "dotenv": "^16.3.1",
         "express": "^4.18.2",
-        "ioredis": "^5.3.2",
-        "pg": "^8.16.3",
         "ws": "^8.19.0"
     },
     "engines": {
