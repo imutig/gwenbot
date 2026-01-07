@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commandes - xsgwen</title>
+    <link rel="icon"
+        href="https://static-cdn.jtvnw.net/jtv_user_pictures/1efe260a-d1d3-4215-9c9f-5a24aea55625-profile_image-70x70.png">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .command-card {
+            padding: 1.25rem;
+            background: rgba(255, 209, 220, 0.4);
+            border-radius: 16px;
+            margin-bottom: 1rem;
+            border-left: 4px solid var(--pink-accent);
+        }
+
+        .command-name {
+            font-family: monospace;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--pink-accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .command-desc {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .command-example {
+            font-family: monospace;
+            font-size: 0.8rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-input);
+            border-radius: 8px;
+            color: var(--text-secondary);
+        }
+
+        .command-badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .badge-mod {
+            background: var(--pink-main);
+            color: white;
+        }
+
+        .badge-public {
+            background: #f0abfc;
+            color: var(--text-primary);
+        }
+
+        .category-title {
+            font-size: 1.25rem;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Floral Background -->
+    <div class="floral-bg">
+        <svg class="flower flower-1" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-2" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-3" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-4" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-5" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-6" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+    </div>
+    <!-- Dynamic Navbar -->
+    <div id="navbar-placeholder"></div>
+
+<!-- Main Content -->
+    <main class="main-content">
+        <h1 class="animate-slideIn"
+            style="font-size: 2rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+            <i data-lucide="scroll-text" style="color: var(--pink-accent);"></i>
+            Commandes du Bot
+        </h1>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">Liste des commandes disponibles sur le chat Twitch</p>
+
+        <div class="glass-card animate-slideIn" style="padding: 2rem;">
+
+            <!-- Public Commands -->
+            <h2 class="category-title">
+                <i data-lucide="users" style="color: var(--pink-accent);"></i>
+                Commandes publiques
+            </h2>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !site
+                    <span class="command-badge badge-public">Tout le monde</span>
+                </div>
+                <div class="command-desc">Affiche le lien vers le site Cemantix avec le leaderboard et les stats.</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !stats [pseudo]
+                    <span class="command-badge badge-public">Tout le monde</span>
+                </div>
+                <div class="command-desc">Affiche tes statistiques (messages, points Cemantix). Ajoute un pseudo pour
+                    voir les stats d'un autre viewer.</div>
+                <div class="command-example">!stats → tes stats | !stats @ami → stats d'un autre</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !pileouface
+                    <span class="command-badge badge-public">Tout le monde</span>
+                </div>
+                <div class="command-desc">Lance une pièce : Pile ou Face ?</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !clip [titre]
+                    <span class="command-badge badge-public">Tout le monde</span>
+                </div>
+                <div class="command-desc">Crée un clip du moment actuel du stream. Tu peux ajouter un titre optionnel.
+                </div>
+                <div class="command-example">!clip → clip par défaut | !clip Moment épique → clip avec titre</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !announce &lt;message&gt; [couleur]
+                    <span class="command-badge badge-mod">Modo</span>
+                </div>
+                <div class="command-desc">Envoie une annonce colorée dans le chat. Couleurs disponibles : blue, green,
+                    orange, purple.</div>
+                <div class="command-example">!announce Bienvenue ! purple → annonce violette</div>
+            </div>
+
+            <!-- Cemantix Commands -->
+            <h2 class="category-title">
+                <i data-lucide="target" style="color: #9333ea;"></i>
+                Commandes Cemantix
+            </h2>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !cemantix
+                    <span class="command-badge badge-public">Tout le monde</span>
+                </div>
+                <div class="command-desc">Affiche le lien vers le site avec les stats et le leaderboard.</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !cemantix start [fr/en]
+                    <span class="command-badge badge-mod">Modo</span>
+                </div>
+                <div class="command-desc">Lance une session de jeu. Par défaut en français, ajoute "en" pour l'anglais.
+                </div>
+                <div class="command-example">!cemantix start → 🇫🇷 | !cemantix start en → 🇬🇧</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !cemantix stop
+                    <span class="command-badge badge-mod">Modo</span>
+                </div>
+                <div class="command-desc">Arrête la session en cours et affiche le récapitulatif.</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !cemantix update [fr/en] &lt;score&gt;
+                    <span class="command-badge badge-mod">Modo</span>
+                </div>
+                <div class="command-desc">Enregistre un nouveau record. Met automatiquement à jour le record all-time si
+                    meilleur.</div>
+                <div class="command-example">!cemantix update fr 42 → Record FR du mois: 42 tentatives</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !cemantix top
+                    <span class="command-badge badge-public">Tout le monde</span>
+                </div>
+                <div class="command-desc">Affiche le Top 5 des meilleurs joueurs Cemantix.</div>
+            </div>
+
+            <div class="command-card">
+                <div class="command-name">
+                    !cemantix reset
+                    <span class="command-badge badge-mod">Modo</span>
+                </div>
+                <div class="command-desc">Réinitialise le leaderboard global. ⚠️ Action irréversible !</div>
+            </div>
+
+            <!-- How it works -->
+            <h2 class="category-title">
+                <i data-lucide="help-circle" style="color: var(--pink-accent);"></i>
+                Comment ça marche ?
+            </h2>
+
+            <div style="color: var(--text-muted); line-height: 1.8;">
+                <p><strong>🎮 Pendant une session Cemantix :</strong></p>
+                <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+                    <li>Écrivez simplement un mot dans le chat</li>
+                    <li>Le bot teste automatiquement le mot contre Cemantix/Cemantle</li>
+                    <li>Vos points s'accumulent en fonction du degré de proximité</li>
+                    <li>Trouvez le mot secret pour gagner un bonus !</li>
+                </ul>
+
+                <p><strong>🏆 Points :</strong></p>
+                <ul style="margin-left: 1.5rem;">
+                    <li>Chaque mot valide rapporte des points basés sur sa proximité (0-100°)</li>
+                    <li>Trouver le mot secret donne un bonus x1.5</li>
+                    <li>Les points sont cumulés dans le leaderboard global</li>
+                </ul>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>Powered by <a href="#">GwenBot</a></p>
+    </footer>
+
+    <script src="/js/main.js"></script>
+    <script src="/js/navbar.js"></script>
+</body>
+
+</html>

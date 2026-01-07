@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clips - xsgwen</title>
+    <link rel="icon"
+        href="https://static-cdn.jtvnw.net/jtv_user_pictures/1efe260a-d1d3-4215-9c9f-5a24aea55625-profile_image-70x70.png">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .clips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .clip-card {
+            border-radius: 16px;
+            overflow: hidden;
+            background: var(--bg-card);
+            transition: all 0.3s ease;
+        }
+
+        .clip-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px var(--shadow-color);
+        }
+
+        .clip-thumbnail {
+            position: relative;
+            padding-top: 56.25%;
+            background: var(--bg-input);
+        }
+
+        .clip-thumbnail img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .clip-play {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: all 0.2s ease;
+        }
+
+        .clip-card:hover .clip-play {
+            background: var(--pink-accent);
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .clip-info {
+            padding: 1rem;
+        }
+
+        .clip-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .clip-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .tiktok-section {
+            margin-top: 3rem;
+        }
+
+        .tiktok-embed-container {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Floral Background -->
+    <div class="floral-bg">
+        <svg class="flower flower-1" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-2" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-3" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-4" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-5" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+        <svg class="flower flower-6" viewBox="0 0 100 100">
+            <g transform="translate(50,50)">
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(0)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(60)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(120)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(180)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(240)" />
+                <path d="M0,-35 C10,-35 15,-20 0,0 C-15,-20 -10,-35 0,-35" transform="rotate(300)" />
+            </g>
+        </svg>
+    </div>
+    <!-- Dynamic Navbar -->
+    <div id="navbar-placeholder"></div>
+
+<!-- Main Content -->
+    <main class="main-content">
+        <h1 class="animate-slideIn"
+            style="font-size: 2rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem;">
+            <i data-lucide="film" style="color: var(--pink-accent);"></i>
+            Clips & Moments
+        </h1>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">Les meilleurs moments des streams</p>
+
+        <!-- Twitch Clips -->
+        <section class="animate-slideIn">
+            <h2 style="font-size: 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="twitch" style="color: #9146FF;"></i>
+                Top Clips Twitch
+            </h2>
+            <div id="clipsContainer" class="clips-grid">
+                <p style="color: var(--text-muted); grid-column: 1 / -1; text-align: center; padding: 3rem;">
+                    <i data-lucide="loader-2" style="animation: spin 1s linear infinite;"></i>
+                    Chargement des clips...
+                </p>
+            </div>
+            <div style="text-align: center; margin-top: 1.5rem;">
+                <a href="https://www.twitch.tv/xsgwen/clips" target="_blank" class="btn btn-secondary">
+                    <i data-lucide="external-link"></i>
+                    Voir tous les clips
+                </a>
+            </div>
+        </section>
+
+        <!-- TikTok Section -->
+        <section class="tiktok-section animate-slideIn" style="animation-delay: 0.2s;">
+            <h2 style="font-size: 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="video" style="color: #ff0050;"></i>
+                TikTok
+            </h2>
+            <div class="glass-card" style="padding: 2rem; text-align: center;">
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">
+                    Retrouve les meilleures vidéos sur TikTok !
+                </p>
+                <a href="https://www.tiktok.com/@xsgwen" target="_blank" class="btn btn-primary">
+                    <i data-lucide="external-link"></i>
+                    Voir le TikTok
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>Powered by <a href="#">GwenBot</a></p>
+    </footer>
+
+    <script src="/js/main.js"></script>
+    <script>
+        async function loadClips() {
+            const container = document.getElementById('clipsContainer');
+
+            try {
+                const response = await fetch('/api/twitch/clips');
+                const data = await response.json();
+
+                if (data.error || !data.clips || data.clips.length === 0) {
+                    container.innerHTML = `
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--text-muted);">
+                            <i data-lucide="video-off" style="width: 48px; height: 48px; margin-bottom: 1rem; opacity: 0.5;"></i>
+                            <p>Aucun clip disponible pour le moment</p>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                container.innerHTML = data.clips.map(clip => `
+                    <a href="${clip.url}" target="_blank" class="clip-card" style="text-decoration: none; color: inherit;">
+                        <div class="clip-thumbnail">
+                            <img src="${clip.thumbnail_url}" alt="${clip.title}" 
+                                 onerror="this.src='https://via.placeholder.com/320x180/8B4558/ffffff?text=Clip'">
+                            <div class="clip-play">
+                                <i data-lucide="play" style="width: 24px; height: 24px;"></i>
+                            </div>
+                            <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; color: white;">
+                                ${Math.floor(clip.duration)}s
+                            </div>
+                        </div>
+                        <div class="clip-info">
+                            <div class="clip-title">${clip.title}</div>
+                            <div class="clip-meta">
+                                <i data-lucide="eye" style="width: 12px; height: 12px; display: inline;"></i>
+                                ${clip.view_count.toLocaleString()} vues • Par ${clip.creator_name}
+                            </div>
+                        </div>
+                    </a>
+                `).join('');
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading clips:', error);
+                container.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; color: var(--text-muted);">
+                        <p>Erreur lors du chargement des clips</p>
+                    </div>
+                `;
+            }
+        }
+
+        loadClips();
+    </script>
+    <style>
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <script src="/js/navbar.js"></script>
+</body>
+
+</html>
