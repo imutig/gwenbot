@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/navbar";
+import ClientLayout from "@/components/client-layout";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -89,12 +90,14 @@ export default function RootLayout({
         </div>
 
         <Navbar />
-        <main className="main-content">
-          {children}
-        </main>
-        <footer className="footer">
-          <p>Powered by <a href="#">GwenBot</a></p>
-        </footer>
+        <ClientLayout>
+          <main className="main-content">
+            {children}
+          </main>
+          <footer className="footer">
+            <p>Powered by <a href="#">GwenBot</a></p>
+          </footer>
+        </ClientLayout>
       </body>
     </html>
   );

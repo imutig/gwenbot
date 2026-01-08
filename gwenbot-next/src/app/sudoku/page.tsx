@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import FancyButton from '@/components/ui/fancy-button'
 
 // Initialize Supabase client for Realtime
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -654,17 +655,17 @@ export default function SudokuPage() {
                     )}
 
                     {mode === 'solo' ? (
-                        <button className="btn btn-primary" style={{ width: '100%', padding: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            onClick={handleStartSolo} disabled={loading}>
-                            {loading ? 'Chargement...' : 'Lancer la partie'}
-                        </button>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <FancyButton size="sm" onClick={handleStartSolo} disabled={loading}>
+                                {loading ? 'Chargement...' : 'Lancer la partie'}
+                            </FancyButton>
+                        </div>
                     ) : (
                         <div style={{ textAlign: 'center' }}>
                             {user.isStreamer ? (
-                                <button className="btn btn-primary" style={{ width: '100%', padding: '1rem', fontSize: '1rem' }}
-                                    onClick={handleCreate1v1} disabled={loading}>
+                                <FancyButton size="sm" onClick={handleCreate1v1} disabled={loading}>
                                     {loading ? 'Chargement...' : 'Créer une session 1v1'}
-                                </button>
+                                </FancyButton>
                             ) : (
                                 <p style={{ color: 'var(--text-muted)' }}>
                                     Attends que le streamer lance une session 1v1 !
@@ -707,17 +708,17 @@ export default function SudokuPage() {
                         )}
                     </div>
 
-                    {user.isStreamer ? (
-                        <button className="btn btn-primary" style={{ width: '100%', padding: '1rem' }}
-                            onClick={handlePickRandom} disabled={loading || !gameState.queue?.length}>
-                            Choisir au hasard
-                        </button>
-                    ) : (
-                        <button className="btn btn-primary" style={{ width: '100%', padding: '1rem' }}
-                            onClick={handleJoinQueue} disabled={loading}>
-                            {loading ? 'Chargement...' : 'Rejoindre la file'}
-                        </button>
-                    )}
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        {user.isStreamer ? (
+                            <FancyButton size="sm" onClick={handlePickRandom} disabled={loading || !gameState.queue?.length}>
+                                Choisir au hasard
+                            </FancyButton>
+                        ) : (
+                            <FancyButton size="sm" onClick={handleJoinQueue} disabled={loading}>
+                                {loading ? 'Chargement...' : 'Rejoindre la file'}
+                            </FancyButton>
+                        )}
+                    </div>
 
                     {message && <p style={{ marginTop: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>{message}</p>}
                 </div>
@@ -740,10 +741,11 @@ export default function SudokuPage() {
                 {message && <p style={{ textAlign: 'center', color: 'var(--pink-accent)', fontWeight: 600, marginTop: '1rem' }}>{message}</p>}
 
                 {gameState.status === 'finished' && (
-                    <button className="btn btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}
-                        onClick={() => { setGameState({ status: 'idle' }); setTimer(0); setHistory([]); setHistoryIndex(-1) }}>
-                        Nouvelle partie
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+                        <FancyButton size="sm" onClick={() => { setGameState({ status: 'idle' }); setTimer(0); setHistory([]); setHistoryIndex(-1) }}>
+                            Nouvelle partie
+                        </FancyButton>
+                    </div>
                 )}
             </div>
         </div>

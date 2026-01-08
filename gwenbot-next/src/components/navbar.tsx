@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
+import FancyButton from '@/components/ui/fancy-button'
 
 // Game links for dropdown
 const gameLinks = [
@@ -249,25 +250,13 @@ export default function Navbar() {
                             </button>
                         </>
                     ) : (
-                        <Link
-                            href="/auth/login"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                padding: '0.6rem 1.25rem',
-                                background: '#9146FF',
-                                color: 'white',
-                                borderRadius: '12px',
-                                textDecoration: 'none',
-                                fontWeight: 600,
-                                fontSize: '0.9rem'
-                            }}
-                        >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
-                            </svg>
-                            Connexion
+                        <Link href="/auth/login" style={{ textDecoration: 'none' }}>
+                            <FancyButton size="xs">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
+                                    <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                                </svg>
+                                Connexion
+                            </FancyButton>
                         </Link>
                     )}
                 </div>

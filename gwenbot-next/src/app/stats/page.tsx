@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Loader from '@/components/ui/loader'
+import FancyButton from '@/components/ui/fancy-button'
 
 const styles = `
   .search-box { display: flex; gap: 0.75rem; margin-bottom: 2rem; }
@@ -127,13 +129,13 @@ export default function StatsPage() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                         />
-                        <button className="btn btn-primary" onClick={handleSearch} disabled={loading}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px' }}>
+                        <FancyButton size="sm" onClick={handleSearch} disabled={loading}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px', marginRight: '0.5rem' }}>
                                 <circle cx="11" cy="11" r="8" />
                                 <path d="m21 21-4.3-4.3" />
                             </svg>
                             {loading ? '...' : 'Rechercher'}
-                        </button>
+                        </FancyButton>
                     </div>
                 </div>
 
@@ -194,7 +196,7 @@ export default function StatsPage() {
                         Top 10 messages
                     </h3>
                     {loadingStats ? (
-                        <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chargement...</p>
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><Loader size="sm" /></div>
                     ) : topMessages.length === 0 ? (
                         <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Aucune donnée</p>
                     ) : (
@@ -224,7 +226,7 @@ export default function StatsPage() {
                         Emotes les plus utilisées
                     </h3>
                     {loadingStats ? (
-                        <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chargement...</p>
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><Loader size="sm" /></div>
                     ) : topEmojis.length === 0 ? (
                         <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Aucune donnée</p>
                     ) : (
@@ -261,7 +263,7 @@ export default function StatsPage() {
                         Top Viewers (Temps de présence)
                     </h3>
                     {loadingStats ? (
-                        <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chargement...</p>
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><Loader size="sm" /></div>
                     ) : watchTimeLeaderboard.length === 0 ? (
                         <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Aucune donnée</p>
                     ) : (
@@ -316,7 +318,7 @@ export default function StatsPage() {
                     </div>
 
                     {loadingStats ? (
-                        <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Chargement...</p>
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><Loader size="sm" /></div>
                     ) : sudokuLeaderboard.filter(e => sudokuDifficulty === 'all' || e.difficulty === sudokuDifficulty).length === 0 ? (
                         <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Aucune partie enregistrée</p>
                     ) : (

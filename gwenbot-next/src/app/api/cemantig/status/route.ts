@@ -142,6 +142,38 @@ export async function GET() {
             }))
         }
 
+        // Get all guesses to calculate contributors leaderboard
+        const { data: allGuesses } = await supabase
+            .from('cemantig_guesses')
+            .select(`
+                player_id,
+                similarity,
+                player:players!cemantig_guesses_player_id_fkey(username)
+            `)
+            .eq('session_id', session.id)
+
+        // Aggregate contributors
+        const contributorMap = new Map<string, { guessCount: number; bestSimilarity: number }>()
+        for (const guess of allGuesses || []) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const username = Array.isArray(guess.player) ? (guess.player as any)[0]?.username : (guess.player as any)?.username
+            if (!username) continue
+
+            const existing = contributorMap.get(username)
+            if (existing) {
+                existing.guessCount++
+                existing.bestSimilarity = Math.max(existing.bestSimilarity, guess.similarity)
+            } else {
+                contributorMap.set(username, { guessCount: 1, bestSimilarity: guess.similarity })
+            }
+        }
+
+        // Sort by guess count and take top 10
+        const contributors = Array.from(contributorMap.entries())
+            .map(([username, data]) => ({ username, ...data }))
+            .sort((a, b) => b.guessCount - a.guessCount)
+            .slice(0, 10)
+
         return NextResponse.json({
             active: true,
             session: {
@@ -150,7 +182,8 @@ export async function GET() {
                 total_guesses: session.total_guesses || 0
             },
             topGuesses: formatGuesses(topGuesses),
-            recentGuesses: formatGuesses(recentGuesses)
+            recentGuesses: formatGuesses(recentGuesses),
+            contributors
         })
     } catch (error) {
         console.error('Error getting status:', error)

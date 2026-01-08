@@ -5,6 +5,7 @@ const { checkWord, calculatePoints } = require('./cemantix-api');
 const { startServer } = require('./server');
 const { gameSession, startSession, stopSession, getSessionStatus } = require('./game-controller');
 const embeddings = require('./utils/word2vec-embeddings');
+const { signRequest } = require('./utils/hmac');
 const path = require('path');
 
 // Configuration
@@ -489,8 +490,17 @@ async function handleMessage(msg) {
                 }
 
                 // Get secret word from a separate endpoint (bot needs to know it)
+                // Use HMAC signature for authentication
+                const secretPayload = { action: 'get_secret' };
+                const secretAuth = signRequest(secretPayload, process.env.BOT_SECRET || '');
                 const secretRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/secret`, {
-                    headers: { 'x-bot-secret': process.env.BOT_SECRET || '' }
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-timestamp': secretAuth.timestamp.toString(),
+                        'x-signature': secretAuth.signature
+                    },
+                    body: JSON.stringify(secretPayload)
                 });
                 const secretData = await secretRes.json();
 
@@ -502,14 +512,17 @@ async function handleMessage(msg) {
                 // Calculate similarity locally
                 const similarity = embeddings.getSimilarity(word, secretData.secret_word);
 
-                // Send to API to save
+                // Send to API to save with HMAC signature
+                const guessPayload = { username, word, similarity };
+                const guessAuth = signRequest(guessPayload, process.env.BOT_SECRET || '');
                 const guessRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/guess`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-bot-secret': process.env.BOT_SECRET || ''
+                        'x-timestamp': guessAuth.timestamp.toString(),
+                        'x-signature': guessAuth.signature
                     },
-                    body: JSON.stringify({ username, word, similarity })
+                    body: JSON.stringify(guessPayload)
                 });
                 const guessData = await guessRes.json();
 

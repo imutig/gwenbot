@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
+import Loader from '@/components/ui/loader'
+import FancyButton from '@/components/ui/fancy-button'
 
 const styles = `
   .clips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
@@ -188,8 +190,8 @@ export default function ClipsPage() {
                     </div>
 
                     {loading ? (
-                        <div style={{ textAlign: 'center', padding: '3rem' }}>
-                            <p style={{ color: 'var(--text-muted)' }}>Chargement des clips...</p>
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '3rem' }}>
+                            <Loader text="Chargement des clips..." />
                         </div>
                     ) : error ? (
                         <div style={{ textAlign: 'center', padding: '3rem' }}>
@@ -271,13 +273,15 @@ export default function ClipsPage() {
                         <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
                             Retrouve les meilleures vidéos sur TikTok !
                         </p>
-                        <a href="https://www.tiktok.com/@xsgwen" target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px' }}>
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                <polyline points="15 3 21 3 21 9" />
-                                <line x1="10" x2="21" y1="14" y2="3" />
-                            </svg>
-                            Voir le TikTok
+                        <a href="https://www.tiktok.com/@xsgwen" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+                            <FancyButton>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px', marginRight: '0.5rem' }}>
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                    <polyline points="15 3 21 3 21 9" />
+                                    <line x1="10" x2="21" y1="14" y2="3" />
+                                </svg>
+                                Voir le TikTok
+                            </FancyButton>
                         </a>
                     </div>
                 </section>

@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+import Loader from '@/components/ui/loader'
 
 const styles = `
   .cemantix-card {
@@ -307,7 +308,7 @@ export default function CemantixPage() {
                     <div style={{ flex: 1, overflowY: 'auto', padding: '0 1.5rem', paddingBottom: '1rem' }}>
                         {activeTab === 'session' && (
                             loading ? (
-                                <p style={{ textAlign: 'center', color: '#f472b6', padding: '2rem' }}>Chargement...</p>
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader size="sm" /></div>
                             ) : !sessionActive && sessionLeaderboard.length === 0 ? (
                                 <p style={{ textAlign: 'center', color: '#f472b6', padding: '2rem' }}>
                                     Aucune session en cours
@@ -334,7 +335,7 @@ export default function CemantixPage() {
 
                         {activeTab === 'global' && (
                             loading ? (
-                                <p style={{ textAlign: 'center', color: '#f472b6', padding: '2rem' }}>Chargement...</p>
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader size="sm" /></div>
                             ) : globalLeaderboard.length === 0 ? (
                                 <p style={{ textAlign: 'center', color: '#f472b6', padding: '2rem' }}>Aucune donnée</p>
                             ) : (

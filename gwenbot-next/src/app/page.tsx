@@ -1,10 +1,53 @@
+'use client'
+
 import Image from "next/image"
 import Link from "next/link"
+import { useState, useEffect } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
+import FancyButton from "@/components/ui/fancy-button"
+import FancyCard from "@/components/ui/fancy-card"
+
+interface TwitchStatus {
+  isLive: boolean
+  viewers: number | null
+  followers: number
+  title: string | null
+  game: string | null
+}
 
 export default function Home() {
+  const [twitchData, setTwitchData] = useState<TwitchStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchTwitchStatus = async () => {
+      try {
+        const res = await fetch('/api/twitch/status')
+        const data = await res.json()
+        setTwitchData(data)
+      } catch (error) {
+        console.error('Error fetching Twitch status:', error)
+        // Fallback data
+        setTwitchData({
+          isLive: false,
+          viewers: null,
+          followers: 416,
+          title: null,
+          game: null
+        })
+      }
+      setLoading(false)
+    }
+
+    fetchTwitchStatus()
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchTwitchStatus, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <>
-      {/* Hero Section - exact copy of original */}
+      {/* Hero Section */}
       <section className="hero animate-slideIn" style={{ textAlign: 'center', marginBottom: '3rem' }}>
         <div className="glass-card" style={{ padding: '3rem' }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
@@ -15,7 +58,9 @@ export default function Home() {
               height={120}
               style={{
                 borderRadius: '50%',
-                border: '4px solid var(--pink-main)'
+                border: twitchData?.isLive ? '4px solid #ef4444' : '4px solid var(--pink-main)',
+                boxShadow: twitchData?.isLive ? '0 0 20px rgba(239, 68, 68, 0.5)' : 'none',
+                transition: 'all 0.3s ease'
               }}
               priority
             />
@@ -24,17 +69,57 @@ export default function Home() {
           <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', fontWeight: 700 }}>xsgwen</h1>
           <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>🌸 Streameuse Twitch 🌸</p>
 
-          {/* Live Status */}
+          {/* Live Status - Dynamic */}
           <div id="liveStatus" style={{ marginBottom: '1.5rem' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              Hors ligne
-            </span>
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                <Skeleton width="80px" height="24px" borderRadius="12px" />
+                <Skeleton width="100px" height="16px" />
+              </div>
+            ) : twitchData?.isLive ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                  <span className="live-badge">EN DIRECT</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                    {twitchData.viewers?.toLocaleString('fr-FR')} spectateurs
+                  </span>
+                </div>
+                {twitchData.game && (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                    🎮 {twitchData.game}
+                  </p>
+                )}
+                {twitchData.title && (
+                  <p style={{
+                    color: 'var(--text-muted)',
+                    fontSize: '0.8rem',
+                    marginTop: '0.25rem',
+                    maxWidth: '400px',
+                    margin: '0.25rem auto 0',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {twitchData.title}
+                  </p>
+                )}
+              </>
+            ) : (
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                Hors ligne
+              </span>
+            )}
+
             {/* Followers count */}
             <div style={{ marginTop: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
               <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '14px', height: '14px' }}>
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
               </svg>
-              416 followers
+              {loading ? (
+                <Skeleton width="80px" height="14px" />
+              ) : (
+                <span>{twitchData?.followers?.toLocaleString('fr-FR')} followers</span>
+              )}
             </div>
           </div>
 
@@ -62,50 +147,66 @@ export default function Home() {
             </a>
           </div>
 
-          {/* Watch Button */}
-          <a href="https://www.twitch.tv/xsgwen" target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ fontSize: '1rem' }}>
-            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '20px', height: '20px' }}>
-              <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
-            </svg>
-            Regarder sur Twitch
+          {/* Watch Button - FancyButton style */}
+          <a
+            href="https://www.twitch.tv/xsgwen"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: 'none' }}
+          >
+            <FancyButton>
+              <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '18px', height: '18px', marginRight: '0.5rem' }}>
+                <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+              </svg>
+              {twitchData?.isLive ? 'Rejoindre le live !' : 'Regarder sur Twitch'}
+            </FancyButton>
           </a>
         </div>
       </section>
 
       {/* Quick Links - grid-3 like original */}
       <section className="grid-3 animate-slideIn" style={{ animationDelay: '0.1s' }}>
-        <Link href="/cemantix" className="glass-card" style={{ padding: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            style={{ width: '48px', height: '48px', color: 'var(--pink-accent)', marginBottom: '1rem', display: 'block' }}>
-            <circle cx="12" cy="12" r="10" />
-            <circle cx="12" cy="12" r="6" />
-            <circle cx="12" cy="12" r="2" />
-          </svg>
-          <h3 style={{ marginBottom: '0.5rem', fontWeight: 600 }}>Cemantix</h3>
-          <p style={{ fontSize: '0.9rem' }}>Leaderboard & jeu collaboratif</p>
-        </Link>
+        <FancyCard
+          href="/cemantix"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ width: '48px', height: '48px' }}>
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="6" />
+              <circle cx="12" cy="12" r="2" />
+            </svg>
+          }
+          title="Cemantix"
+          description="Leaderboard & jeu collaboratif"
+        />
 
-        <Link href="/planning" className="glass-card" style={{ padding: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            style={{ width: '48px', height: '48px', color: 'var(--pink-accent)', marginBottom: '1rem', display: 'block' }}>
-            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-            <line x1="16" x2="16" y1="2" y2="6" />
-            <line x1="8" x2="8" y1="2" y2="6" />
-            <line x1="3" x2="21" y1="10" y2="10" />
-          </svg>
-          <h3 style={{ marginBottom: '0.5rem', fontWeight: 600 }}>Planning</h3>
-          <p style={{ fontSize: '0.9rem' }}>Horaires des streams</p>
-        </Link>
+        <FancyCard
+          href="/planning"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ width: '48px', height: '48px' }}>
+              <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+              <line x1="16" x2="16" y1="2" y2="6" />
+              <line x1="8" x2="8" y1="2" y2="6" />
+              <line x1="3" x2="21" y1="10" y2="10" />
+            </svg>
+          }
+          title="Planning"
+          description="Horaires des streams"
+        />
 
-        <Link href="/clips" className="glass-card" style={{ padding: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            style={{ width: '48px', height: '48px', color: 'var(--pink-accent)', marginBottom: '1rem', display: 'block' }}>
-            <rect width="18" height="18" x="3" y="3" rx="2" />
-            <path d="m9 8 6 4-6 4Z" />
-          </svg>
-          <h3 style={{ marginBottom: '0.5rem', fontWeight: 600 }}>Clips</h3>
-          <p style={{ fontSize: '0.9rem' }}>Meilleurs moments</p>
-        </Link>
+        <FancyCard
+          href="/clips"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ width: '48px', height: '48px' }}>
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="m9 8 6 4-6 4Z" />
+            </svg>
+          }
+          title="Clips"
+          description="Meilleurs moments"
+        />
       </section>
     </>
   )

@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import Loader from '@/components/ui/loader'
+import { SkeletonList } from '@/components/ui/skeleton'
+import { useToast } from '@/components/toast-context'
+import FancyButton from '@/components/ui/fancy-button'
 
 // Supabase client for Realtime
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -31,12 +35,20 @@ interface LastSession {
     winner: string | null
 }
 
+interface Contributor {
+    username: string
+    guessCount: number
+    bestSimilarity: number
+}
+
 export default function CemantigPage() {
+    const { showToast } = useToast()
     const [isActive, setIsActive] = useState(false)
     const [session, setSession] = useState<Session | null>(null)
     const [lastSession, setLastSession] = useState<LastSession | null>(null)
     const [topGuesses, setTopGuesses] = useState<Guess[]>([])
     const [recentGuesses, setRecentGuesses] = useState<Guess[]>([])
+    const [contributors, setContributors] = useState<Contributor[]>([])
     const [loading, setLoading] = useState(true)
     const [secretWord, setSecretWord] = useState('')
     const [message, setMessage] = useState<string | null>(null)
@@ -76,6 +88,7 @@ export default function CemantigPage() {
                 setSession(data.session)
                 setTopGuesses(data.topGuesses || [])
                 setRecentGuesses(data.recentGuesses || [])
+                setContributors(data.contributors || [])
                 setLastSession(null)
             } else {
                 setSession(null)
@@ -144,14 +157,14 @@ export default function CemantigPage() {
 
             if (data.success) {
                 setSecretWord('')
-                setMessage('Session démarrée !')
+                showToast('Session Cemantig démarrée !', 'success')
                 fetchStatus()
             } else {
-                setMessage(data.error || 'Erreur')
+                showToast(data.error || 'Erreur lors du démarrage', 'error')
             }
         } catch (error) {
             console.error('Error starting session:', error)
-            setMessage('Erreur de connexion')
+            showToast('Erreur de connexion', 'error')
         }
     }
 
@@ -165,14 +178,14 @@ export default function CemantigPage() {
             const data = await res.json()
 
             if (data.success) {
-                setMessage(`Session terminée. Le mot était "${data.secret_word}"`)
+                showToast(`Session terminée ! Le mot était "${data.secret_word}"`, 'info')
                 fetchStatus()
             } else {
-                setMessage(data.error || 'Erreur')
+                showToast(data.error || 'Erreur lors de la fin', 'error')
             }
         } catch (error) {
             console.error('Error ending session:', error)
-            setMessage('Erreur de connexion')
+            showToast('Erreur de connexion', 'error')
         }
     }
 
@@ -214,10 +227,8 @@ export default function CemantigPage() {
 
     if (loading) {
         return (
-            <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
-                <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
-                    <p style={{ color: 'var(--text-muted)' }}>Chargement...</p>
-                </div>
+            <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+                <Loader text="Chargement..." />
             </div>
         )
     }
@@ -285,21 +296,14 @@ export default function CemantigPage() {
                                         color: 'var(--text-primary)'
                                     }}
                                 />
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={handleStartSession}
-                                >
+                                <FancyButton size="xs" onClick={handleStartSession}>
                                     Démarrer
-                                </button>
+                                </FancyButton>
                             </div>
                         ) : (
-                            <button
-                                className="btn btn-secondary"
-                                onClick={handleEndSession}
-                                style={{ width: '100%' }}
-                            >
+                            <FancyButton size="xs" onClick={handleEndSession}>
                                 Terminer la session
-                            </button>
+                            </FancyButton>
                         )}
 
                         {message && (
@@ -344,101 +348,158 @@ export default function CemantigPage() {
 
                 {/* Session Grids - Show for both active sessions AND finished sessions with results */}
                 {(isActive && session) || (!isActive && lastSession && topGuesses.length > 0) ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        {/* Top 10 */}
-                        <div className="glass-card" style={{ padding: '1.5rem' }}>
-                            <h3 style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '20px', height: '20px' }}>
-                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                                </svg>
-                                Top 10 - Plus proches
-                            </h3>
+                    <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            {/* Top 10 */}
+                            <div className="glass-card" style={{ padding: '1.5rem' }}>
+                                <h3 style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '20px', height: '20px' }}>
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                    </svg>
+                                    Top 10 - Plus proches
+                                </h3>
 
-                            {topGuesses.length === 0 ? (
-                                <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Aucun guess</p>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {topGuesses.map((guess, i) => (
-                                        <div key={guess.id} style={{
+                                {topGuesses.length === 0 ? (
+                                    <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Aucun guess</p>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        {topGuesses.map((guess, i) => (
+                                            <div key={guess.id} style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.75rem',
+                                                padding: '0.75rem',
+                                                background: 'var(--bg-card)',
+                                                borderRadius: '8px'
+                                            }}>
+                                                <span style={{
+                                                    fontWeight: 700,
+                                                    color: i < 3 ? 'var(--pink-accent)' : 'var(--text-muted)',
+                                                    width: '24px'
+                                                }}>
+                                                    #{i + 1}
+                                                </span>
+                                                <span style={{ flex: 1, fontWeight: 500 }}>{guess.word}</span>
+                                                <span style={{ width: '28px', textAlign: 'center' }}>
+                                                    {getSimilarityEmoji(guess.similarity)}
+                                                </span>
+                                                <span style={{
+                                                    fontWeight: 700,
+                                                    color: getSimilarityColor(guess.similarity),
+                                                    fontFamily: 'monospace',
+                                                    minWidth: '80px',
+                                                    textAlign: 'right'
+                                                }}>
+                                                    {formatTemperature(guess.similarity)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Recent Guesses */}
+                            <div className="glass-card" style={{ padding: '1.5rem' }}>
+                                <h3 style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '20px', height: '20px' }}>
+                                        <circle cx="12" cy="12" r="10" />
+                                        <polyline points="12 6 12 12 16 14" />
+                                    </svg>
+                                    Historique ({session?.total_guesses || lastSession?.total_guesses || 0} total)
+                                </h3>
+
+                                {recentGuesses.length === 0 ? (
+                                    <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Aucun guess</p>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '400px', overflowY: 'auto' }}>
+                                        {recentGuesses.map((guess) => (
+                                            <div key={guess.id} style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.75rem',
+                                                padding: '0.5rem 0.75rem',
+                                                background: 'var(--bg-card)',
+                                                borderRadius: '8px',
+                                                fontSize: '0.9rem'
+                                            }}>
+                                                <span style={{ color: 'var(--pink-accent)', fontWeight: 500 }}>
+                                                    {guess.username}
+                                                </span>
+                                                <span style={{ flex: 1 }}>{guess.word}</span>
+                                                <span style={{ fontSize: '1rem' }}>
+                                                    {getSimilarityEmoji(guess.similarity)}
+                                                </span>
+                                                <span style={{
+                                                    fontWeight: 600,
+                                                    color: getSimilarityColor(guess.similarity),
+                                                    fontFamily: 'monospace',
+                                                    minWidth: '70px',
+                                                    textAlign: 'right'
+                                                }}>
+                                                    {formatTemperature(guess.similarity)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Contributors Leaderboard */}
+                        {contributors.length > 0 && (
+                            <div className="glass-card" style={{ padding: '1.5rem', marginTop: '1rem' }}>
+                                <h3 style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '20px', height: '20px' }}>
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                        <circle cx="9" cy="7" r="4" />
+                                        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                                    </svg>
+                                    Top Contributeurs
+                                </h3>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                                    gap: '0.75rem'
+                                }}>
+                                    {contributors.map((contributor, i) => (
+                                        <div key={contributor.username} style={{
                                             display: 'flex',
                                             alignItems: 'center',
                                             gap: '0.75rem',
-                                            padding: '0.75rem',
-                                            background: 'var(--bg-card)',
-                                            borderRadius: '8px'
+                                            padding: '0.75rem 1rem',
+                                            background: i < 3 ? 'linear-gradient(135deg, rgba(255, 105, 180, 0.1), rgba(255, 182, 193, 0.15))' : 'var(--bg-card)',
+                                            borderRadius: '10px',
+                                            border: i < 3 ? '1px solid var(--pink-accent)' : '1px solid var(--border-color)'
                                         }}>
                                             <span style={{
                                                 fontWeight: 700,
-                                                color: i < 3 ? 'var(--pink-accent)' : 'var(--text-muted)',
+                                                fontSize: '1.1rem',
+                                                color: i === 0 ? '#fbbf24' : i === 1 ? '#94a3b8' : i === 2 ? '#cd7f32' : 'var(--text-muted)',
                                                 width: '24px'
                                             }}>
-                                                #{i + 1}
+                                                {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
                                             </span>
-                                            <span style={{ flex: 1, fontWeight: 500 }}>{guess.word}</span>
-                                            <span style={{ width: '28px', textAlign: 'center' }}>
-                                                {getSimilarityEmoji(guess.similarity)}
-                                            </span>
-                                            <span style={{
-                                                fontWeight: 700,
-                                                color: getSimilarityColor(guess.similarity),
-                                                fontFamily: 'monospace',
-                                                minWidth: '80px',
-                                                textAlign: 'right'
-                                            }}>
-                                                {formatTemperature(guess.similarity)}
-                                            </span>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{
+                                                    fontWeight: 600,
+                                                    color: 'var(--text-primary)',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                }}>
+                                                    {contributor.username}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                                    {contributor.guessCount} guesses • Best: {formatTemperature(contributor.bestSimilarity)}
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
-                            )}
-                        </div>
-
-                        {/* Recent Guesses */}
-                        <div className="glass-card" style={{ padding: '1.5rem' }}>
-                            <h3 style={{ fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '20px', height: '20px' }}>
-                                    <circle cx="12" cy="12" r="10" />
-                                    <polyline points="12 6 12 12 16 14" />
-                                </svg>
-                                Historique ({session?.total_guesses || lastSession?.total_guesses || 0} total)
-                            </h3>
-
-                            {recentGuesses.length === 0 ? (
-                                <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Aucun guess</p>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '400px', overflowY: 'auto' }}>
-                                    {recentGuesses.map((guess) => (
-                                        <div key={guess.id} style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.75rem',
-                                            padding: '0.5rem 0.75rem',
-                                            background: 'var(--bg-card)',
-                                            borderRadius: '8px',
-                                            fontSize: '0.9rem'
-                                        }}>
-                                            <span style={{ color: 'var(--pink-accent)', fontWeight: 500 }}>
-                                                {guess.username}
-                                            </span>
-                                            <span style={{ flex: 1 }}>{guess.word}</span>
-                                            <span style={{ fontSize: '1rem' }}>
-                                                {getSimilarityEmoji(guess.similarity)}
-                                            </span>
-                                            <span style={{
-                                                fontWeight: 600,
-                                                color: getSimilarityColor(guess.similarity),
-                                                fontFamily: 'monospace',
-                                                minWidth: '70px',
-                                                textAlign: 'right'
-                                            }}>
-                                                {formatTemperature(guess.similarity)}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                            </div>
+                        )}
+                    </>
                 ) : (
                     /* No Active Session */
                     <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
