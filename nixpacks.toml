@@ -1,8 +1,3 @@
-[phases.setup]
-nixPkgs = ["git-lfs"]
-
-[phases.install]
-cmds = ["git lfs install", "git lfs pull", "npm ci"]
-
+# Bot doesn't need special build, just npm
 [start]
 cmd = "node index.js"

@@ -5,6 +5,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+
+// URL to download embeddings if not present (set via environment variable)
+const EMBEDDINGS_URL = process.env.EMBEDDINGS_URL || 'https://github.com/imutig/gwenbot/releases/download/v1.0.0/frWiki_no_phrase_no_postag_1000_skip_cut100.bin';
 
 class Word2VecEmbeddings {
     constructor() {
@@ -15,6 +19,74 @@ class Word2VecEmbeddings {
     }
 
     /**
+     * Download file from URL
+     */
+    async downloadFile(url, destPath) {
+        return new Promise((resolve, reject) => {
+            console.log(`[Embeddings] Téléchargement depuis ${url}...`);
+            const dir = path.dirname(destPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+
+            const file = fs.createWriteStream(destPath);
+
+            const request = (url) => {
+                https.get(url, (response) => {
+                    // Handle redirects
+                    if (response.statusCode === 301 || response.statusCode === 302) {
+                        console.log(`[Embeddings] Redirection vers ${response.headers.location}`);
+                        request(response.headers.location);
+                        return;
+                    }
+
+                    const totalBytes = parseInt(response.headers['content-length'], 10);
+                    let downloadedBytes = 0;
+                    let lastLog = 0;
+
+                    response.on('data', (chunk) => {
+                        downloadedBytes += chunk.length;
+                        const progress = Math.round((downloadedBytes / totalBytes) * 100);
+                        if (progress >= lastLog + 10) {
+                            console.log(`[Embeddings] Téléchargement: ${progress}%`);
+                            lastLog = progress;
+                        }
+                    });
+
+                    response.pipe(file);
+                    file.on('finish', () => {
+                        file.close();
+                        console.log(`[Embeddings] Téléchargement terminé (${Math.round(downloadedBytes / 1024 / 1024)} MB)`);
+                        resolve();
+                    });
+                }).on('error', (err) => {
+                    fs.unlink(destPath, () => { });
+                    reject(err);
+                });
+            };
+
+            request(url);
+        });
+    }
+
+    /**
+     * Check if file is a Git LFS pointer (small text file)
+     */
+    isLfsPointer(filePath) {
+        try {
+            const stats = fs.statSync(filePath);
+            // LFS pointers are typically < 200 bytes
+            if (stats.size < 500) {
+                const content = fs.readFileSync(filePath, 'utf8');
+                return content.includes('version https://git-lfs.github.com/');
+            }
+            return false;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
      * Charge le fichier d'embeddings binaire word2vec en mémoire
      */
     async load(filePath) {
@@ -22,6 +94,21 @@ class Word2VecEmbeddings {
         this.loading = true;
 
         const absolutePath = path.resolve(filePath);
+
+        // Check if file needs to be downloaded
+        if (!fs.existsSync(absolutePath) || this.isLfsPointer(absolutePath)) {
+            if (this.isLfsPointer(absolutePath)) {
+                console.log(`[Embeddings] Fichier LFS pointeur détecté, téléchargement du vrai fichier...`);
+            }
+            try {
+                await this.downloadFile(EMBEDDINGS_URL, absolutePath);
+            } catch (err) {
+                console.error(`[Embeddings] Erreur de téléchargement:`, err.message);
+                this.loading = false;
+                throw err;
+            }
+        }
+
         console.log(`[Embeddings] Chargement de ${absolutePath}...`);
         const startTime = Date.now();
 
