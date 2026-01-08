@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json()
-        const { username, progress } = body
+        const { username, progress, time_seconds } = body
 
         if (!username || progress === undefined) {
             return NextResponse.json({ error: 'Username and progress required' }, { status: 400 })
@@ -69,21 +69,23 @@ export async function POST(request: Request) {
                 .update({
                     status: 'finished',
                     winner_id: player?.id,
+                    time_seconds: time_seconds || null,
                     finished_at: new Date().toISOString()
                 })
                 .eq('id', game.id)
 
-            // Broadcast the update
+            // Broadcast the update with winning time
             await supabase.channel('sudoku-broadcast').send({
                 type: 'broadcast',
                 event: 'sudoku_update',
-                payload: { action: 'game_finished', winner: username }
+                payload: { action: 'game_finished', winner: username, time_seconds: time_seconds || 0 }
             })
 
             return NextResponse.json({
                 success: true,
                 complete: true,
                 winner: username,
+                time_seconds: time_seconds || 0,
                 message: `🎉 ${username} a gagné !`
             })
         }

@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json()
-        const { difficulty, time_seconds, username } = body
+        const { difficulty, time_seconds, username, puzzle, solution } = body
 
         if (!difficulty || time_seconds === undefined) {
             return NextResponse.json({ error: 'Difficulty and time required' }, { status: 400 })
@@ -45,6 +45,8 @@ export async function POST(request: Request) {
             .insert({
                 mode: 'solo',
                 difficulty,
+                puzzle: puzzle || '000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+                solution: solution || puzzle || '000000000000000000000000000000000000000000000000000000000000000000000000000000000',
                 status: 'finished',
                 winner_id: playerId,
                 time_seconds,

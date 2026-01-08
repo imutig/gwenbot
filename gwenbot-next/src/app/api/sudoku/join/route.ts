@@ -31,22 +31,29 @@ export async function POST(request: Request) {
         }
 
         // Get or create player
-        let { data: player } = await supabase
+        console.log('[Sudoku Join] Looking for player:', username.toLowerCase())
+        let { data: player, error: playerError } = await supabase
             .from('players')
             .select('id')
             .eq('username', username.toLowerCase())
             .single()
 
         if (!player) {
-            const { data: newPlayer } = await supabase
+            console.log('[Sudoku Join] Player not found, creating new player')
+            const { data: newPlayer, error: insertError } = await supabase
                 .from('players')
                 .insert({ username: username.toLowerCase() })
                 .select('id')
                 .single()
+
+            if (insertError) {
+                console.error('[Sudoku Join] Failed to create player:', insertError)
+            }
             player = newPlayer
         }
 
         if (!player) {
+            console.error('[Sudoku Join] Failed to get player, playerError:', playerError)
             return NextResponse.json({ error: 'Failed to get player' }, { status: 500 })
         }
 
@@ -77,6 +84,13 @@ export async function POST(request: Request) {
             .from('sudoku_queue')
             .select('*', { count: 'exact', head: true })
             .eq('game_id', game.id)
+
+        // Broadcast queue update
+        await supabase.channel('sudoku-broadcast').send({
+            type: 'broadcast',
+            event: 'sudoku_update',
+            payload: { action: 'queue_updated', username: username.toLowerCase() }
+        })
 
         return NextResponse.json({
             success: true,

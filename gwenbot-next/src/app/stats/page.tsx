@@ -12,11 +12,12 @@ const styles = `
   .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
   .player-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
   .player-avatar { width: 80px; height: 80px; border-radius: 50%; background: var(--bg-input); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; color: var(--pink-accent); border: 3px solid var(--pink-main); }
-  .leaderboard-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-card); border-radius: 12px; margin-bottom: 0.5rem; }
-  .rank-badge { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 700; font-size: 0.75rem; }
-  .rank-1 { background: linear-gradient(45deg, #FFD700, #FDB931); color: white; }
-  .rank-2 { background: linear-gradient(45deg, #C0C0C0, #E8E8E8); color: #333; }
-  .rank-3 { background: linear-gradient(45deg, #CD7F32, #E9967A); color: white; }
+  .leaderboard-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-card); border-radius: 12px; margin-bottom: 0.5rem; transition: transform 0.15s ease; }
+  .leaderboard-item:hover { transform: translateX(4px); }
+  .rank-badge { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 700; font-size: 0.8rem; background: var(--bg-input); color: var(--text-muted); }
+  .rank-1 { background: linear-gradient(135deg, var(--pink-accent), #ff6b9d); color: white; box-shadow: 0 2px 8px rgba(255,107,157,0.3); }
+  .rank-2 { background: linear-gradient(135deg, #d4a5ff, #b388ff); color: white; box-shadow: 0 2px 8px rgba(179,136,255,0.3); }
+  .rank-3 { background: linear-gradient(135deg, #ffc4d6, #ffb3c6); color: #8b5a6b; box-shadow: 0 2px 8px rgba(255,179,198,0.3); }
   @media (max-width: 768px) { .stats-grid { grid-template-columns: 1fr; } }
 `
 
@@ -203,8 +204,8 @@ export default function StatsPage() {
                         <div>
                             {topMessages.map((entry, i) => (
                                 <div key={`${entry.username}-${i}`} className="leaderboard-item">
-                                    <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`} style={i >= 3 ? { background: 'var(--bg-input)' } : undefined}>
-                                        {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
+                                    <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`}>
+                                        {i + 1}
                                     </div>
                                     <div style={{ flex: 1, fontWeight: 500 }}>{entry.username}</div>
                                     <div style={{ color: 'var(--pink-accent)', fontWeight: 700 }}>{entry.count} messages</div>
@@ -270,8 +271,8 @@ export default function StatsPage() {
                         <div>
                             {watchTimeLeaderboard.map((entry, i) => (
                                 <div key={`${entry.username}-${i}`} className="leaderboard-item">
-                                    <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`} style={i >= 3 ? { background: 'var(--bg-input)' } : undefined}>
-                                        {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
+                                    <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`}>
+                                        {i + 1}
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ fontWeight: 500 }}>{entry.username}</div>

@@ -34,6 +34,26 @@ const GridIcon = () => (
     </svg>
 )
 
+const DiceIcon = () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '16px', height: '16px' }}>
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <circle cx="8" cy="8" r="1" fill="currentColor" /><circle cx="16" cy="8" r="1" fill="currentColor" />
+        <circle cx="8" cy="16" r="1" fill="currentColor" /><circle cx="16" cy="16" r="1" fill="currentColor" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" />
+    </svg>
+)
+
+const TrophyIcon = ({ size = 48 }: { size?: number }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: `${size}px`, height: `${size}px` }}>
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+        <path d="M4 22h16" />
+        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+    </svg>
+)
+
 type Mode = 'solo' | '1v1'
 type Difficulty = 'easy' | 'medium' | 'hard'
 type GameStatus = 'idle' | 'waiting' | 'playing' | 'finished'
@@ -78,6 +98,15 @@ export default function SudokuPage() {
     const [opponentProgress, setOpponentProgress] = useState<string>('')
     const [opponentUsername, setOpponentUsername] = useState<string>('')
 
+    // Store final grids for victory screen
+    const [finalGrids, setFinalGrids] = useState<{ myGrid: number[], opponentGrid: number[] } | null>(null)
+
+    // Store official winning time for victory screen
+    const [winningTime, setWinningTime] = useState<number | null>(null)
+
+    // Flag to prevent grid reset when game is already initialized
+    const gameInitializedRef = useRef(false)
+
     // Load user from session on mount
     useEffect(() => {
         const loadUser = async () => {
@@ -117,17 +146,19 @@ export default function SudokuPage() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (gameState.status !== 'playing' || selectedCell === null) return
-            if (originalPuzzle[selectedCell] !== 0) return // Can't edit original cells
 
             const key = e.key
+            const isOriginalCell = originalPuzzle[selectedCell] !== 0
 
-            // Number keys 1-9
+            // Number keys 1-9 (only allowed on non-original cells)
             if (key >= '1' && key <= '9') {
+                if (isOriginalCell) return // Can't edit original cells
                 e.preventDefault()
                 handleNumberInput(parseInt(key))
             }
-            // Delete or Backspace to clear
+            // Delete or Backspace to clear (only allowed on non-original cells)
             else if (key === 'Delete' || key === 'Backspace' || key === '0') {
+                if (isOriginalCell) return // Can't edit original cells
                 e.preventDefault()
                 handleNumberInput(0)
             }
@@ -163,36 +194,24 @@ export default function SudokuPage() {
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [gameState.status, selectedCell, originalPuzzle, historyIndex, history])
 
-    // Check for active game on load
+    // Check for active game on load (wait for user to be loaded)
     useEffect(() => {
-        checkGameStatus()
-    }, [])
-
-    // Subscribe to Realtime updates via Broadcast
-    useEffect(() => {
-        if (!supabase) return
-
-        const channel = supabase
-            .channel('sudoku-broadcast')
-            .on('broadcast', { event: 'sudoku_update' }, () => {
-                checkGameStatus()
-            })
-            .subscribe((status) => {
-                console.log('[Sudoku] Broadcast subscription status:', status)
-            })
-
-        return () => { supabase.removeChannel(channel) }
-    }, [])
+        if (user.username) {
+            checkGameStatus()
+        }
+    }, [user.username])
 
     const checkGameStatus = useCallback(async () => {
         try {
             const res = await fetch('/api/sudoku/status')
             const data = await res.json()
+            console.log('[Sudoku] checkGameStatus response:', data)
 
             if (data.active && data.game) {
                 setGameState({
                     id: data.game.id,
                     puzzle: data.game.puzzle,
+                    solution: data.game.solution,
                     status: data.game.status as GameStatus,
                     host: data.game.host,
                     challenger: data.game.challenger,
@@ -202,28 +221,78 @@ export default function SudokuPage() {
 
                 if (data.game.puzzle && data.game.status === 'playing') {
                     const puzzleArray = data.game.puzzle.split('').map(Number)
-                    setGrid(puzzleArray)
-                    setOriginalPuzzle(puzzleArray)
+
+                    // Only set grid if not already initialized (don't overwrite user's progress)
+                    if (!gameInitializedRef.current) {
+                        setGrid(puzzleArray)
+                        setOriginalPuzzle(puzzleArray)
+                        // Start timer when game starts
+                        setTimer(0)
+                        setIsTimerRunning(true)
+                        gameInitializedRef.current = true
+                    }
 
                     // Set opponent progress for 1v1
                     const isHost = data.game.host?.username?.toLowerCase() === user.username.toLowerCase()
-                    if (isHost && data.game.challengerProgress) {
-                        setOpponentProgress(data.game.challengerProgress)
+                    console.log('[Sudoku] isHost:', isHost, 'user:', user.username, 'host:', data.game.host?.username)
+                    console.log('[Sudoku] hostProgress:', data.game.hostProgress, 'challengerProgress:', data.game.challengerProgress)
+
+                    if (isHost) {
+                        // I'm host, show challenger's progress
+                        if (data.game.challengerProgress) {
+                            setOpponentProgress(data.game.challengerProgress)
+                        }
                         setOpponentUsername(data.game.challenger?.username || 'Adversaire')
-                    } else if (!isHost && data.game.hostProgress) {
-                        setOpponentProgress(data.game.hostProgress)
+                    } else {
+                        // I'm challenger, show host's progress
+                        if (data.game.hostProgress) {
+                            setOpponentProgress(data.game.hostProgress)
+                        }
                         setOpponentUsername(data.game.host?.username || 'Adversaire')
                     }
                 }
             } else {
-                setGameState({ status: 'idle' })
-                setOpponentProgress('')
-                setOpponentUsername('')
+                // Only reset to idle if we're not already in finished state (showing victory screen)
+                if (gameState.status !== 'finished') {
+                    setGameState({ status: 'idle' })
+                    setOpponentProgress('')
+                    setOpponentUsername('')
+                    gameInitializedRef.current = false
+                }
             }
         } catch (error) {
             console.error('Error checking status:', error)
         }
     }, [user.username])
+
+    // Subscribe to Realtime updates via Broadcast
+    useEffect(() => {
+        if (!supabase || !user.username) return
+
+        const channel = supabase
+            .channel('sudoku-broadcast')
+            .on('broadcast', { event: 'sudoku_update' }, (payload) => {
+                console.log('[Sudoku] Broadcast received:', payload)
+
+                // Handle game_finished: show victory screen for losing player
+                if (payload.payload?.action === 'game_finished') {
+                    const winnerUsername = payload.payload.winner
+                    console.log('[Sudoku] Game finished! Winner:', winnerUsername)
+                    setIsTimerRunning(false)
+                    setWinningTime(payload.payload.time_seconds || 0)
+                    setGameState(prev => ({ ...prev, status: 'finished', winner: { username: winnerUsername } }))
+                    setMessage(`${winnerUsername} a remporté la partie !`)
+                } else {
+                    // For other broadcasts (progress_update, queue_updated, etc.), refresh status
+                    checkGameStatus()
+                }
+            })
+            .subscribe((status) => {
+                console.log('[Sudoku] Broadcast subscription status:', status)
+            })
+
+        return () => { supabase.removeChannel(channel) }
+    }, [user.username, checkGameStatus])
 
     // Add to history when grid changes
     const addToHistory = (newGrid: number[]) => {
@@ -336,12 +405,50 @@ export default function SudokuPage() {
             const res = await fetch('/api/sudoku/pick', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: 'xsgwen', random: true })
+                body: JSON.stringify({ username: user.username, random: true })
             })
             const data = await res.json()
             setMessage(data.message || data.error)
         } catch (error) {
             console.error('Error picking:', error)
+        }
+        setLoading(false)
+    }
+
+    const handlePickUser = async (challengerUsername: string) => {
+        setLoading(true)
+        try {
+            const res = await fetch('/api/sudoku/pick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user.username, challengerUsername })
+            })
+            const data = await res.json()
+            setMessage(data.message || data.error)
+        } catch (error) {
+            console.error('Error picking:', error)
+        }
+        setLoading(false)
+    }
+
+    const handleCancelGame = async () => {
+        if (!confirm('Voulez-vous vraiment annuler cette partie ?')) return
+        setLoading(true)
+        try {
+            const res = await fetch('/api/sudoku/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user.username })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setGameState({ status: 'idle' })
+                setMessage('Partie annulée')
+            } else {
+                setMessage(data.error || 'Erreur')
+            }
+        } catch (error) {
+            console.error('Error cancelling:', error)
         }
         setLoading(false)
     }
@@ -352,7 +459,7 @@ export default function SudokuPage() {
         gridRef.current?.focus()
     }
 
-    const handleNumberInput = (num: number) => {
+    const handleNumberInput = async (num: number) => {
         if (selectedCell === null) return
         if (originalPuzzle[selectedCell] !== 0) return // Can't edit original cells
 
@@ -360,6 +467,30 @@ export default function SudokuPage() {
         newGrid[selectedCell] = num
         setGrid(newGrid)
         addToHistory(newGrid)
+
+        // Sync progress for 1v1 mode
+        if (gameState.challenger && gameState.id) {
+            const progressString = newGrid.join('')
+            try {
+                const res = await fetch('/api/sudoku/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user.username, progress: progressString, time_seconds: timer })
+                })
+                const data = await res.json()
+
+                // If this player won, set finished state immediately
+                if (data.complete) {
+                    setIsTimerRunning(false)
+                    setWinningTime(data.time_seconds || timer)
+                    setGameState({ ...gameState, status: 'finished', winner: { username: data.winner } })
+                    setMessage(`Victoire ! ${data.winner} a gagné !`)
+                    return // Don't run checkCompletion, we already handled it
+                }
+            } catch (err) {
+                console.error('Error syncing progress:', err)
+            }
+        }
 
         // Check if puzzle is complete
         checkCompletion(newGrid)
@@ -378,19 +509,23 @@ export default function SudokuPage() {
                 setMessage(`Bravo ! Puzzle r\u00e9solu en ${formatTime(finalTime)}`)
                 setGameState({ ...gameState, status: 'finished' })
 
-                // Save solo game to database
-                try {
-                    await fetch('/api/sudoku/complete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            difficulty,
-                            time_seconds: finalTime,
-                            username: user.username
+                // Save solo game to database (skip for 1v1 - handled by update API)
+                if (!gameState.challenger) {
+                    try {
+                        await fetch('/api/sudoku/complete', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                difficulty,
+                                time_seconds: finalTime,
+                                username: user.username,
+                                puzzle: originalPuzzle.join(''),
+                                solution: gameState.solution
+                            })
                         })
-                    })
-                } catch (error) {
-                    console.error('Failed to save game:', error)
+                    } catch (error) {
+                        console.error('Failed to save game:', error)
+                    }
                 }
             }
         }
@@ -552,7 +687,8 @@ export default function SudokuPage() {
 
     // Render opponent's mini grid (1v1 mode only)
     const renderOpponentGrid = () => {
-        if (!opponentProgress || mode !== '1v1' || gameState.status !== 'playing') return null
+        // Check if it's a 1v1 game by looking for challenger, not the mode state variable
+        if (!opponentProgress || !gameState.challenger || gameState.status !== 'playing') return null
 
         const opponentGrid = opponentProgress.split('').map(Number)
         const puzzleGrid = originalPuzzle.length > 0 ? originalPuzzle : Array(81).fill(0)
@@ -585,16 +721,17 @@ export default function SudokuPage() {
                 >
                     {opponentGrid.map((value, i) => {
                         const isOriginal = puzzleGrid[i] !== 0
-                        const isFilled = value !== 0
+                        const solutionGrid = gameState.solution ? gameState.solution.split('').map(Number) : []
+                        const isCorrect = solutionGrid.length > 0 && value === solutionGrid[i] && value !== 0 && !isOriginal
                         const row = Math.floor(i / 9)
                         const col = i % 9
                         const isThickRight = col === 2 || col === 5
                         const isThickBottom = row === 2 || row === 5
 
-                        // Color: gray for original, pink for filled by opponent, transparent for empty
+                        // Color: gray for original, pink for CORRECT fills only, transparent for empty/wrong
                         let bgColor = 'var(--bg-base)'
                         if (isOriginal) bgColor = 'rgba(100, 100, 100, 0.3)'
-                        else if (isFilled) bgColor = 'var(--pink-accent)'
+                        else if (isCorrect) bgColor = 'var(--pink-accent)'
 
                         return (
                             <div
@@ -609,8 +746,211 @@ export default function SudokuPage() {
                     })}
                 </div>
                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '0.25rem' }}>
-                    {Math.round((opponentGrid.filter(v => v !== 0).length / 81) * 100)}% complété
+                    {(() => {
+                        const solutionGrid = gameState.solution ? gameState.solution.split('').map(Number) : []
+                        const cellsToFill = puzzleGrid.filter(v => v === 0).length
+                        const cellsCorrect = opponentGrid.filter((v, i) => v !== 0 && puzzleGrid[i] === 0 && solutionGrid[i] === v).length
+                        return cellsToFill > 0 ? Math.round((cellsCorrect / cellsToFill) * 100) : 0
+                    })()}% complété
                 </div>
+            </div>
+        )
+    }
+
+    // Render victory screen for 1v1 finished games
+    const renderVictoryScreen = () => {
+        if (gameState.status !== 'finished' || !gameState.challenger) return null
+
+        const isWinner = gameState.winner?.username?.toLowerCase() === user.username.toLowerCase()
+        const winnerName = gameState.winner?.username || 'Inconnu'
+        const solutionGrid = gameState.solution ? gameState.solution.split('').map(Number) : Array(81).fill(0)
+        const puzzleGrid = originalPuzzle.length > 0 ? originalPuzzle : Array(81).fill(0)
+
+        // My grid is the current grid, opponent grid is from opponentProgress
+        const myGrid = grid
+        const oppGrid = opponentProgress ? opponentProgress.split('').map(Number) : Array(81).fill(0)
+
+        const renderMiniGrid = (gridData: number[], label: string, isWinnerGrid: boolean) => (
+            <div style={{ textAlign: 'center' }}>
+                <div style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    marginBottom: '0.5rem',
+                    color: isWinnerGrid ? 'var(--pink-accent)' : 'var(--text-muted)',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem'
+                }}>
+                    {label} {isWinnerGrid && <TrophyIcon size={14} />}
+                </div>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(9, 1fr)',
+                    gap: '1px',
+                    width: '150px',
+                    height: '150px',
+                    background: 'var(--border-color)',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    margin: '0 auto'
+                }}>
+                    {gridData.map((value, i) => {
+                        const isOriginal = puzzleGrid[i] !== 0
+                        const isCorrect = value === solutionGrid[i] && value !== 0
+                        const isWrong = value !== 0 && value !== solutionGrid[i] && !isOriginal
+
+                        let bgColor = 'var(--bg-base)'
+                        if (isOriginal) bgColor = 'rgba(100, 100, 100, 0.2)'
+                        else if (isCorrect) bgColor = 'rgba(34, 197, 94, 0.3)'
+                        else if (isWrong) bgColor = 'rgba(239, 68, 68, 0.3)'
+
+                        return (
+                            <div key={i} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: bgColor,
+                                fontSize: '0.6rem',
+                                fontWeight: isOriginal ? 600 : 400,
+                                color: isOriginal ? 'var(--text-muted)' : 'var(--text-primary)'
+                            }}>
+                                {value || ''}
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        )
+
+        const handleRematch = async () => {
+            // Reset states and create new game
+            setGameState({ status: 'idle' })
+            setTimer(0)
+            setHistory([])
+            setHistoryIndex(-1)
+            setGrid(Array(81).fill(0))
+            setOriginalPuzzle([])
+            setOpponentProgress('')
+            setFinalGrids(null)
+            setWinningTime(null)
+            gameInitializedRef.current = false
+            // Create new 1v1 session if authorized
+            if (user.isAuthorized) {
+                handleCreate1v1()
+            }
+        }
+
+        const handleExit = () => {
+            setGameState({ status: 'idle' })
+            setTimer(0)
+            setHistory([])
+            setHistoryIndex(-1)
+            setGrid(Array(81).fill(0))
+            setOriginalPuzzle([])
+            setOpponentProgress('')
+            setFinalGrids(null)
+            setWinningTime(null)
+            gameInitializedRef.current = false
+        }
+
+        return (
+            <div className="animate-slideIn" style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                minHeight: '70vh'
+            }}>
+                <div className="glass-card" style={{
+                    padding: '2.5rem',
+                    maxWidth: '600px',
+                    width: '100%',
+                    textAlign: 'center'
+                }}>
+                    {/* Trophy animation */}
+                    <div style={{
+                        animation: 'pulse 2s ease-in-out infinite',
+                        color: 'var(--pink-accent)',
+                        marginBottom: '1rem',
+                        display: 'flex',
+                        justifyContent: 'center'
+                    }}>
+                        <TrophyIcon size={64} />
+                    </div>
+
+                    <h1 style={{
+                        fontSize: '2rem',
+                        fontWeight: 700,
+                        marginBottom: '0.5rem',
+                        background: 'linear-gradient(135deg, var(--pink-accent), var(--pink-light))',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent'
+                    }}>
+                        Victoire !
+                    </h1>
+
+                    <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>
+                        <strong style={{ color: 'var(--pink-accent)' }}>{winnerName}</strong> a remporté la partie !
+                    </p>
+
+                    {/* Grid comparison */}
+                    <div style={{
+                        display: 'flex',
+                        gap: '2rem',
+                        justifyContent: 'center',
+                        marginBottom: '2rem',
+                        flexWrap: 'wrap'
+                    }}>
+                        {renderMiniGrid(
+                            myGrid,
+                            user.username || 'Vous',
+                            gameState.winner?.username?.toLowerCase() === user.username.toLowerCase()
+                        )}
+                        {renderMiniGrid(
+                            oppGrid,
+                            opponentUsername || 'Adversaire',
+                            gameState.winner?.username?.toLowerCase() === opponentUsername.toLowerCase()
+                        )}
+                    </div>
+
+                    {/* Timer display */}
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                        Temps: {Math.floor((winningTime ?? timer) / 60)}:{((winningTime ?? timer) % 60).toString().padStart(2, '0')}
+                    </p>
+
+                    {/* Buttons */}
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        {user.isAuthorized && (
+                            <FancyButton size="sm" onClick={handleRematch}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <SwordsIcon /> Revanche
+                                </span>
+                            </FancyButton>
+                        )}
+                        <button
+                            onClick={handleExit}
+                            style={{
+                                background: 'transparent',
+                                border: '1px solid var(--border-color)',
+                                color: 'var(--text-muted)',
+                                padding: '0.75rem 1.5rem',
+                                borderRadius: '12px',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem'
+                            }}
+                        >
+                            Retour au menu
+                        </button>
+                    </div>
+                </div>
+
+                <style>{`
+                    @keyframes pulse {
+                        0%, 100% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                    }
+                `}</style>
             </div>
         )
     }
@@ -793,48 +1133,131 @@ export default function SudokuPage() {
     // Waiting state - queue view
     if (gameState.status === 'waiting') {
         return (
-            <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center' }}>
-                <div className="glass-card" style={{ padding: '2rem', maxWidth: '600px', width: '100%' }}>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem', textAlign: 'center' }}>
-                        Session 1v1 en attente
+            <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                <div className="glass-card" style={{ padding: '2.5rem', maxWidth: '500px', width: '100%', textAlign: 'center' }}>
+                    <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+                        <SwordsIcon />
+                    </div>
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                        Session 1v1
                     </h1>
-
-                    <p style={{ textAlign: 'center', marginBottom: '1.5rem', color: 'var(--text-muted)' }}>
-                        Host: <strong>{gameState.host?.username || 'xsgwen'}</strong>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
+                        Host: <span style={{ color: 'var(--pink-accent)', fontWeight: 600 }}>{gameState.host?.username || 'Anonyme'}</span>
                     </p>
 
-                    <h3 style={{ marginBottom: '0.5rem' }}>File d&apos;attente ({gameState.queue?.length || 0})</h3>
-                    <div style={{ marginBottom: '1.5rem', background: 'var(--bg-card)', borderRadius: '12px', padding: '1rem' }}>
+                    <div style={{
+                        background: 'var(--bg-base)',
+                        borderRadius: '16px',
+                        padding: '1.5rem',
+                        marginBottom: '1.5rem',
+                        border: '1px solid var(--border-color)'
+                    }}>
+                        <h3 style={{ marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                            <GamepadIcon /> File d&apos;attente ({gameState.queue?.length || 0})
+                        </h3>
+
                         {gameState.queue && gameState.queue.length > 0 ? (
-                            gameState.queue.map((q, i) => (
-                                <div key={i} style={{ padding: '0.5rem', borderBottom: i < gameState.queue!.length - 1 ? '1px solid var(--border-color)' : undefined }}>
-                                    {i + 1}. {q.username}
-                                </div>
-                            ))
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {gameState.queue.map((q, i) => (
+                                    <div
+                                        key={i}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '0.75rem 1rem',
+                                            background: 'var(--bg-card)',
+                                            borderRadius: '12px',
+                                            border: '1px solid var(--border-color)'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                            <span style={{
+                                                background: 'var(--pink-accent)',
+                                                color: 'white',
+                                                width: '28px',
+                                                height: '28px',
+                                                borderRadius: '50%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 600
+                                            }}>
+                                                {i + 1}
+                                            </span>
+                                            <span style={{ fontWeight: 500 }}>{q.username}</span>
+                                        </div>
+                                        {user.isAuthorized && (
+                                            <button
+                                                onClick={() => handlePickUser(q.username)}
+                                                disabled={loading}
+                                                style={{
+                                                    background: 'var(--pink-accent)',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    padding: '0.4rem 0.8rem',
+                                                    borderRadius: '8px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 500,
+                                                    transition: 'opacity 0.2s'
+                                                }}
+                                            >
+                                                Choisir
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         ) : (
-                            <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Aucun participant</p>
+                            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                En attente de challengers...
+                            </p>
                         )}
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
                         {user.isAuthorized ? (
-                            <FancyButton size="sm" onClick={handlePickRandom} disabled={loading || !gameState.queue?.length}>
-                                Choisir au hasard
-                            </FancyButton>
+                            <>
+                                <FancyButton size="sm" onClick={handlePickRandom} disabled={loading || !gameState.queue?.length}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><DiceIcon /> Choisir au hasard</span>
+                                </FancyButton>
+                                <button
+                                    onClick={handleCancelGame}
+                                    disabled={loading}
+                                    style={{
+                                        background: 'transparent',
+                                        border: '1px solid var(--text-muted)',
+                                        color: 'var(--text-muted)',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.85rem'
+                                    }}
+                                >
+                                    Annuler la session
+                                </button>
+                            </>
                         ) : (
                             <FancyButton size="sm" onClick={handleJoinQueue} disabled={loading}>
-                                {loading ? 'Chargement...' : 'Rejoindre la file'}
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><GamepadIcon /> {loading ? 'Chargement...' : 'Rejoindre la file'}</span>
                             </FancyButton>
                         )}
                     </div>
 
-                    {message && <p style={{ marginTop: '1rem', textAlign: 'center', color: 'var(--text-muted)' }}>{message}</p>}
+                    {message && <p style={{ marginTop: '1rem', color: 'var(--pink-accent)', fontWeight: 500 }}>{message}</p>}
                 </div>
             </div>
         )
     }
 
-    // Playing/Finished state - grid view
+    // Victory screen for 1v1 finished games
+    if (gameState.status === 'finished' && gameState.challenger) {
+        return renderVictoryScreen()
+    }
+
+    // Playing/Finished state - grid view (solo or still playing 1v1)
     return (
         <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center' }}>
             <div className="glass-card" style={{ padding: '2rem', maxWidth: '700px', width: '100%' }}>
@@ -853,6 +1276,43 @@ export default function SudokuPage() {
                         <FancyButton size="sm" onClick={() => { setGameState({ status: 'idle' }); setTimer(0); setHistory([]); setHistoryIndex(-1) }}>
                             Nouvelle partie
                         </FancyButton>
+                    </div>
+                )}
+
+                {/* Cancel button during playing */}
+                {gameState.status === 'playing' && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+                        <button
+                            onClick={() => {
+                                if (gameState.challenger && user.isAuthorized) {
+                                    // 1v1: Call API to cancel
+                                    handleCancelGame()
+                                } else {
+                                    // Solo: Just reset local state
+                                    setGameState({ status: 'idle' })
+                                    setTimer(0)
+                                    setIsTimerRunning(false)
+                                    setHistory([])
+                                    setHistoryIndex(-1)
+                                    setGrid(Array(81).fill(0))
+                                    setOriginalPuzzle([])
+                                    gameInitializedRef.current = false
+                                    setMessage('Partie annulée')
+                                }
+                            }}
+                            disabled={loading}
+                            style={{
+                                background: 'transparent',
+                                border: '1px solid var(--text-muted)',
+                                color: 'var(--text-muted)',
+                                padding: '0.5rem 1rem',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem'
+                            }}
+                        >
+                            Annuler la partie
+                        </button>
                     </div>
                 )}
             </div>

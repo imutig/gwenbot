@@ -15,9 +15,15 @@ export async function POST(request: Request) {
         const body = await request.json()
         const { username, challengerUsername, random } = body
 
-        // Only streamer can pick
-        if (username?.toLowerCase() !== 'xsgwen') {
-            return NextResponse.json({ error: 'Only the streamer can pick challengers' }, { status: 403 })
+        // Check if user is authorized
+        const { data: authorizedUser } = await supabase
+            .from('authorized_users')
+            .select('username')
+            .eq('username', username?.toLowerCase())
+            .single()
+
+        if (!authorizedUser) {
+            return NextResponse.json({ error: 'Only authorized users can pick challengers' }, { status: 403 })
         }
 
         // Get active waiting game
@@ -81,6 +87,13 @@ export async function POST(request: Request) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const players = (selectedEntry as any).players as { username: string } | { username: string }[]
         const challengerName = Array.isArray(players) ? players[0]?.username : players?.username
+
+        // Broadcast game started
+        await supabase.channel('sudoku-broadcast').send({
+            type: 'broadcast',
+            event: 'sudoku_update',
+            payload: { action: 'game_started', challenger: challengerName }
+        })
 
         return NextResponse.json({
             success: true,

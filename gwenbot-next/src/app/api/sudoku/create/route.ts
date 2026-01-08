@@ -68,6 +68,9 @@ export async function POST(request: Request) {
         // Generate puzzle
         const { puzzle, solution } = generateSudoku(difficulty)
 
+        // Debug: Log solution for testing
+        console.log(`[Sudoku Create] Solution for testing: ${solution}`)
+
         if (mode === 'solo') {
             // Solo mode - no DB storage, just return puzzle
             return NextResponse.json({
@@ -141,6 +144,13 @@ export async function POST(request: Request) {
             .single()
 
         if (error) throw error
+
+        // Broadcast session creation so other players see the queue
+        await supabase.channel('sudoku-broadcast').send({
+            type: 'broadcast',
+            event: 'sudoku_update',
+            payload: { action: 'session_created', host: username }
+        })
 
         return NextResponse.json({
             success: true,
