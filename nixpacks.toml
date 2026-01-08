@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["git-lfs"]
+
+[phases.install]
+cmds = ["git lfs install", "git lfs pull", "npm ci"]
+
+[start]
+cmd = "node index.js"
