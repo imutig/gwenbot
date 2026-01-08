@@ -245,7 +245,12 @@ export default function CemantigPage() {
                     textAlign: 'center'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>💬 Pour deviner, tape dans le chat :</span>
+                        <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </svg>
+                            Pour deviner, tape dans le chat :
+                        </span>
                         <code style={{
                             background: 'var(--pink-accent)',
                             color: 'white',
@@ -315,7 +320,16 @@ export default function CemantigPage() {
                         textAlign: 'center',
                         color: 'white'
                     }}>
-                        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎉</div>
+                        <div style={{ marginBottom: '0.5rem' }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '40px', height: '40px' }}>
+                                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                                <path d="M4 22h16" />
+                                <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
+                                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
+                                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                            </svg>
+                        </div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
                             {lastSession.winner} a trouvé le mot !
                         </div>

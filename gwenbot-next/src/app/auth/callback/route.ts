@@ -7,12 +7,15 @@ export async function GET(request: Request) {
     const code = searchParams.get('code')
     const next = searchParams.get('next') ?? '/'
 
+    // Use the configured site URL for production, fallback to origin
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || origin
+
     if (code) {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
         const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
         if (!supabaseUrl || !supabaseAnonKey) {
-            return NextResponse.redirect(`${origin}/auth/login?error=config`)
+            return NextResponse.redirect(`${siteUrl}/auth/login?error=config`)
         }
 
         const cookieStore = await cookies()
@@ -37,10 +40,10 @@ export async function GET(request: Request) {
         const { error } = await supabase.auth.exchangeCodeForSession(code)
 
         if (!error) {
-            return NextResponse.redirect(`${origin}${next}`)
+            return NextResponse.redirect(`${siteUrl}${next}`)
         }
     }
 
     // Return to login with error
-    return NextResponse.redirect(`${origin}/auth/login?error=callback`)
+    return NextResponse.redirect(`${siteUrl}/auth/login?error=callback`)
 }
