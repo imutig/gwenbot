@@ -364,15 +364,19 @@ async function pollChatters() {
                 // Check if presence exists
                 const { data: existing } = await supabase
                     .from('viewer_presence')
-                    .select('id')
+                    .select('id, watch_time_seconds')
                     .eq('stream_id', currentStreamId)
                     .eq('player_id', playerId)
                     .single();
 
                 if (existing) {
+                    // Increment watch_time_seconds by 60 (polling interval)
                     await supabase
                         .from('viewer_presence')
-                        .update({ last_seen: new Date().toISOString() })
+                        .update({
+                            last_seen: new Date().toISOString(),
+                            watch_time_seconds: (existing.watch_time_seconds || 0) + 60
+                        })
                         .eq('id', existing.id);
                 } else {
                     await supabase
@@ -382,7 +386,8 @@ async function pollChatters() {
                             player_id: playerId,
                             first_seen: new Date().toISOString(),
                             last_seen: new Date().toISOString(),
-                            message_count: 0
+                            message_count: 0,
+                            watch_time_seconds: 60 // First poll counts as 60s
                         });
                 }
             } catch (err) {

@@ -74,6 +74,10 @@ export default function SudokuPage() {
     // Mock user for demo
     const [user] = useState({ username: 'viewer123', isStreamer: false })
 
+    // Opponent progress for 1v1 visualization
+    const [opponentProgress, setOpponentProgress] = useState<string>('')
+    const [opponentUsername, setOpponentUsername] = useState<string>('')
+
     // Timer effect
     useEffect(() => {
         let interval: NodeJS.Timeout | null = null
@@ -178,14 +182,26 @@ export default function SudokuPage() {
                     const puzzleArray = data.game.puzzle.split('').map(Number)
                     setGrid(puzzleArray)
                     setOriginalPuzzle(puzzleArray)
+
+                    // Set opponent progress for 1v1
+                    const isHost = data.game.host?.username?.toLowerCase() === user.username.toLowerCase()
+                    if (isHost && data.game.challengerProgress) {
+                        setOpponentProgress(data.game.challengerProgress)
+                        setOpponentUsername(data.game.challenger?.username || 'Adversaire')
+                    } else if (!isHost && data.game.hostProgress) {
+                        setOpponentProgress(data.game.hostProgress)
+                        setOpponentUsername(data.game.host?.username || 'Adversaire')
+                    }
                 }
             } else {
                 setGameState({ status: 'idle' })
+                setOpponentProgress('')
+                setOpponentUsername('')
             }
         } catch (error) {
             console.error('Error checking status:', error)
         }
-    }, [])
+    }, [user.username])
 
     // Add to history when grid changes
     const addToHistory = (newGrid: number[]) => {
@@ -507,6 +523,71 @@ export default function SudokuPage() {
         </div>
     )
 
+    // Render opponent's mini grid (1v1 mode only)
+    const renderOpponentGrid = () => {
+        if (!opponentProgress || mode !== '1v1' || gameState.status !== 'playing') return null
+
+        const opponentGrid = opponentProgress.split('').map(Number)
+        const puzzleGrid = originalPuzzle.length > 0 ? originalPuzzle : Array(81).fill(0)
+
+        return (
+            <div style={{
+                position: 'fixed',
+                bottom: '1rem',
+                right: '1rem',
+                background: 'var(--bg-card)',
+                borderRadius: '12px',
+                padding: '0.75rem',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                zIndex: 100
+            }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.5rem', textAlign: 'center' }}>
+                    {opponentUsername}
+                </div>
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(9, 1fr)',
+                        gap: '1px',
+                        width: '120px',
+                        height: '120px',
+                        background: 'var(--border-color)',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                    }}
+                >
+                    {opponentGrid.map((value, i) => {
+                        const isOriginal = puzzleGrid[i] !== 0
+                        const isFilled = value !== 0
+                        const row = Math.floor(i / 9)
+                        const col = i % 9
+                        const isThickRight = col === 2 || col === 5
+                        const isThickBottom = row === 2 || row === 5
+
+                        // Color: gray for original, pink for filled by opponent, transparent for empty
+                        let bgColor = 'var(--bg-base)'
+                        if (isOriginal) bgColor = 'rgba(100, 100, 100, 0.3)'
+                        else if (isFilled) bgColor = 'var(--pink-accent)'
+
+                        return (
+                            <div
+                                key={i}
+                                style={{
+                                    background: bgColor,
+                                    borderRight: isThickRight ? '2px solid var(--text-muted)' : undefined,
+                                    borderBottom: isThickBottom ? '2px solid var(--text-muted)' : undefined
+                                }}
+                            />
+                        )
+                    })}
+                </div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '0.25rem' }}>
+                    {Math.round((opponentGrid.filter(v => v !== 0).length / 81) * 100)}% complété
+                </div>
+            </div>
+        )
+    }
+
     // Render number pad
     const renderNumberPad = () => (
         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -748,6 +829,9 @@ export default function SudokuPage() {
                     </div>
                 )}
             </div>
+
+            {/* Opponent's mini grid for 1v1 */}
+            {renderOpponentGrid()}
         </div>
     )
 }

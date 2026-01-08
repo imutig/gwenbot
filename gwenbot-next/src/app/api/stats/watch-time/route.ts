@@ -16,11 +16,10 @@ export async function GET() {
         const { data: presences } = await supabase
             .from('viewer_presence')
             .select(`
-        first_seen,
-        last_seen,
-        message_count,
-        players!inner(username)
-      `)
+                watch_time_seconds,
+                message_count,
+                players!inner(username)
+            `)
 
         // Aggregate by player
         const playerStats: Record<string, { username: string; watch_time_minutes: number; streams_watched: number }> = {}
@@ -30,9 +29,8 @@ export async function GET() {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const players = p.players as any
                 const username = players?.username ?? (Array.isArray(players) ? players[0]?.username : 'Unknown')
-                const start = new Date(p.first_seen)
-                const end = new Date(p.last_seen)
-                const minutes = Math.floor((end.getTime() - start.getTime()) / 60000)
+                // Use watch_time_seconds from DB, convert to minutes
+                const minutes = Math.floor((p.watch_time_seconds || 0) / 60)
 
                 if (!playerStats[username]) {
                     playerStats[username] = { username, watch_time_minutes: 0, streams_watched: 0 }

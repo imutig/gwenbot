@@ -77,7 +77,7 @@ export default function CommandsPage() {
 
                     <div className="command-card">
                         <div className="command-name">!site<span className="command-badge badge-public">Tout le monde</span></div>
-                        <div className="command-desc">Affiche le lien vers le site Cemantix avec le leaderboard et les stats.</div>
+                        <div className="command-desc">Affiche le lien vers le site.</div>
                     </div>
 
                     <div className="command-card">
