@@ -7,7 +7,7 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
-const { query } = require('./db');
+const { supabase } = require('./db');
 const { getSessionStatus, startSession, stopSession } = require('./game-controller');
 
 // Import route modules
@@ -42,9 +42,14 @@ let SUPER_ADMINS = [];
 // Load authorized users from database
 async function loadAuthorizedUsers() {
     try {
-        const result = await query('SELECT username, is_super_admin FROM authorized_users');
-        AUTHORIZED_USERS = result.rows.map(r => r.username.toLowerCase());
-        SUPER_ADMINS = result.rows.filter(r => r.is_super_admin).map(r => r.username.toLowerCase());
+        const { data: result, error } = await supabase
+            .from('authorized_users')
+            .select('username, is_super_admin');
+
+        if (error) throw error;
+
+        AUTHORIZED_USERS = (result || []).map(r => r.username.toLowerCase());
+        SUPER_ADMINS = (result || []).filter(r => r.is_super_admin).map(r => r.username.toLowerCase());
         console.log(`✅ Loaded ${AUTHORIZED_USERS.length} authorized users (${SUPER_ADMINS.length} super admins)`);
     } catch (error) {
         console.error('Error loading authorized users:', error);
@@ -485,7 +490,6 @@ app.get('/api/auth/user', async (req, res) => {
 
 // Admin routes: /api/admin/*
 const adminRouter = adminRoutes.createRouter({
-    query,
     requireAdmin,
     getSession,
     getAuthorizedUsers: () => AUTHORIZED_USERS,
@@ -498,7 +502,7 @@ const adminRouter = adminRoutes.createRouter({
 app.use('/api/admin', adminRouter);
 
 // Stats routes: /api/*
-const statsRouter = statsRoutes.createRouter({ query });
+const statsRouter = statsRoutes.createRouter({});
 app.use('/api', statsRouter);
 
 // Twitch routes: /api/twitch/*
@@ -606,8 +610,7 @@ async function startServer(twitchClient = null) {
         TWITCH_CLIENT_ID,
         TWITCH_CLIENT_SECRET,
         TWITCH_REDIRECT_URI,
-        twitchClient: twitchClientRef,
-        query
+        twitchClient: twitchClientRef
     });
     app.use('/auth', botAuthRouter);
 

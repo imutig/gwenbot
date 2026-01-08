@@ -3,29 +3,26 @@
  */
 
 const express = require('express');
-
-let query;
+const { supabase } = require('../db');
 
 function createRouter(deps) {
-    query = deps.query;
-
     const router = express.Router();
 
     // Public records endpoint
     router.get('/records', async (req, res) => {
         try {
-            const result = await query(`
-                SELECT lang, record_type, value, month
-                FROM streamer_records
-                ORDER BY lang, record_type
-            `);
+            const { data: result } = await supabase
+                .from('streamer_records')
+                .select('lang, record_type, value, month')
+                .order('lang')
+                .order('record_type');
 
             const records = {
                 fr: { alltime: null, monthly: null, monthlyPeriod: null },
                 en: { alltime: null, monthly: null, monthlyPeriod: null }
             };
 
-            for (const row of result.rows) {
+            for (const row of result || []) {
                 if (records[row.lang]) {
                     if (row.record_type === 'alltime') {
                         records[row.lang].alltime = row.value;
@@ -46,34 +43,37 @@ function createRouter(deps) {
     // Leaderboard data
     router.get('/leaderboard', async (req, res) => {
         try {
-            // First, check for active session
-            const activeSession = await query(`
-                SELECT id, lang FROM game_sessions
-                WHERE ended_at IS NULL
-                ORDER BY started_at DESC LIMIT 1
-            `);
+            // Check for active session
+            const { data: activeSession } = await supabase
+                .from('game_sessions')
+                .select('id, lang')
+                .is('ended_at', null)
+                .order('started_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
-            let sessionActive = activeSession.rows.length > 0;
-            let sessionId = activeSession.rows[0]?.id;
-            let lang = activeSession.rows[0]?.lang || 'fr';
+            let sessionActive = !!activeSession;
+            let sessionId = activeSession?.id;
+            let lang = activeSession?.lang || 'fr';
             let lastSessionInfo = null;
 
             // If no active session, get the most recent completed session
             if (!sessionActive) {
-                const lastSession = await query(`
-                    SELECT id, lang, word, ended_at, duration
-                    FROM game_sessions
-                    WHERE ended_at IS NOT NULL
-                    ORDER BY ended_at DESC LIMIT 1
-                `);
+                const { data: lastSession } = await supabase
+                    .from('game_sessions')
+                    .select('id, lang, word, ended_at, duration')
+                    .not('ended_at', 'is', null)
+                    .order('ended_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
 
-                if (lastSession.rows.length > 0) {
-                    sessionId = lastSession.rows[0].id;
-                    lang = lastSession.rows[0].lang;
+                if (lastSession) {
+                    sessionId = lastSession.id;
+                    lang = lastSession.lang;
                     lastSessionInfo = {
-                        word: lastSession.rows[0].word,
-                        ended_at: lastSession.rows[0].ended_at,
-                        duration: lastSession.rows[0].duration
+                        word: lastSession.word,
+                        ended_at: lastSession.ended_at,
+                        duration: lastSession.duration
                     };
                 }
             }
@@ -82,29 +82,38 @@ function createRouter(deps) {
             let guessCount = 0;
 
             if (sessionId) {
-                const sessionResult = await query(`
-                    SELECT p.username as user, SUM(sg.points) as points
-                    FROM session_guesses sg
-                    JOIN players p ON sg.player_id = p.id
-                    WHERE sg.session_id = $1
-                    GROUP BY p.username
-                    ORDER BY points DESC
-                    LIMIT 50
-                `, [sessionId]);
-                sessionLeaderboard = sessionResult.rows.map(r => ({ user: r.user, points: parseInt(r.points) }));
+                // Get session guesses with player info
+                const { data: sessionGuesses } = await supabase
+                    .from('session_guesses')
+                    .select('points, players!inner(username)')
+                    .eq('session_id', sessionId);
 
-                const countResult = await query('SELECT COUNT(*) FROM session_guesses WHERE session_id = $1', [sessionId]);
-                guessCount = parseInt(countResult.rows[0].count);
+                // Aggregate points by player
+                const playerPoints = {};
+                for (const g of sessionGuesses || []) {
+                    const username = g.players?.username || (Array.isArray(g.players) ? g.players[0]?.username : 'Unknown');
+                    playerPoints[username] = (playerPoints[username] || 0) + (g.points || 0);
+                }
+
+                sessionLeaderboard = Object.entries(playerPoints)
+                    .map(([user, points]) => ({ user, points }))
+                    .sort((a, b) => b.points - a.points)
+                    .slice(0, 50);
+
+                guessCount = (sessionGuesses || []).length;
             }
 
-            const globalResult = await query(`
-                SELECT p.username as user, ps.total_points as points
-                FROM player_stats ps
-                JOIN players p ON ps.player_id = p.id
-                ORDER BY ps.total_points DESC
-                LIMIT 50
-            `);
-            const globalLeaderboard = globalResult.rows.map(r => ({ user: r.user, points: parseInt(r.points) }));
+            // Get global leaderboard
+            const { data: globalStats } = await supabase
+                .from('player_stats')
+                .select('total_points, players!inner(username)')
+                .order('total_points', { ascending: false })
+                .limit(50);
+
+            const globalLeaderboard = (globalStats || []).map(s => {
+                const username = s.players?.username || (Array.isArray(s.players) ? s.players[0]?.username : 'Unknown');
+                return { user: username, points: s.total_points || 0 };
+            });
 
             res.json({
                 sessionActive,
@@ -125,55 +134,58 @@ function createRouter(deps) {
         try {
             const username = req.params.username.toLowerCase();
 
-            const playerResult = await query('SELECT id FROM players WHERE username = $1', [username]);
+            const { data: player } = await supabase
+                .from('players')
+                .select('id')
+                .eq('username', username)
+                .single();
 
-            if (playerResult.rows.length === 0) {
+            if (!player) {
                 return res.json({ found: false, username, stats: null });
             }
 
-            const playerId = playerResult.rows[0].id;
+            const playerId = player.id;
 
-            const statsResult = await query(`
-                SELECT games_played, total_points, best_session_score, words_found
-                FROM player_stats WHERE player_id = $1
-            `, [playerId]);
+            const { data: stats } = await supabase
+                .from('player_stats')
+                .select('games_played, total_points, best_session_score, words_found')
+                .eq('player_id', playerId)
+                .single();
 
-            if (statsResult.rows.length === 0) {
+            if (!stats) {
                 return res.json({ found: false, username, stats: null });
             }
 
-            const stats = statsResult.rows[0];
+            // Get rank (count players with more points)
+            const { count: rank } = await supabase
+                .from('player_stats')
+                .select('*', { count: 'exact', head: true })
+                .gt('total_points', stats.total_points);
 
-            const rankResult = await query(`
-                SELECT COUNT(*) + 1 as rank FROM player_stats
-                WHERE total_points > (SELECT total_points FROM player_stats WHERE player_id = $1)
-            `, [playerId]);
-            const globalRank = parseInt(rankResult.rows[0].rank);
+            const { data: bestWords } = await supabase
+                .from('session_guesses')
+                .select('word, degree')
+                .eq('player_id', playerId)
+                .gt('degree', 0)
+                .order('degree', { ascending: false })
+                .limit(5);
 
-            const bestWordsResult = await query(`
-                SELECT word, degree FROM session_guesses
-                WHERE player_id = $1 AND degree > 0
-                ORDER BY degree DESC
-                LIMIT 5
-            `, [playerId]);
-
-            const messageCountResult = await query(
-                'SELECT COUNT(*) FROM chat_messages WHERE player_id = $1',
-                [playerId]
-            );
-            const messageCount = parseInt(messageCountResult.rows[0].count);
+            const { count: messageCount } = await supabase
+                .from('chat_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('player_id', playerId);
 
             res.json({
                 found: true,
                 username,
                 stats: {
-                    games_played: parseInt(stats.games_played),
-                    total_points: parseInt(stats.total_points),
-                    best_session_score: parseInt(stats.best_session_score),
-                    words_found: parseInt(stats.words_found),
-                    global_rank: globalRank,
-                    best_words: bestWordsResult.rows,
-                    message_count: messageCount
+                    games_played: stats.games_played || 0,
+                    total_points: stats.total_points || 0,
+                    best_session_score: stats.best_session_score || 0,
+                    words_found: stats.words_found || 0,
+                    global_rank: (rank || 0) + 1,
+                    best_words: bestWords || [],
+                    message_count: messageCount || 0
                 }
             });
         } catch (error) {
@@ -185,19 +197,28 @@ function createRouter(deps) {
     // Session history
     router.get('/history', async (req, res) => {
         try {
-            const historyResult = await query(`
-                SELECT 
-                    gs.id, gs.lang, gs.word, gs.duration, gs.guess_count as "guessCount",
-                    gs.player_count as "playerCount", gs.ended_at as date,
-                    p.username as winner
-                FROM game_sessions gs
-                LEFT JOIN players p ON gs.winner_id = p.id
-                WHERE gs.ended_at IS NOT NULL
-                ORDER BY gs.ended_at DESC
-                LIMIT 50
-            `);
+            const { data: sessions } = await supabase
+                .from('game_sessions')
+                .select('id, lang, word, duration, guess_count, player_count, ended_at, players!winner_id(username)')
+                .not('ended_at', 'is', null)
+                .order('ended_at', { ascending: false })
+                .limit(50);
 
-            res.json({ history: historyResult.rows });
+            const history = (sessions || []).map(gs => {
+                const winner = gs.players?.username || (Array.isArray(gs.players) ? gs.players[0]?.username : null);
+                return {
+                    id: gs.id,
+                    lang: gs.lang,
+                    word: gs.word,
+                    duration: gs.duration,
+                    guessCount: gs.guess_count,
+                    playerCount: gs.player_count,
+                    date: gs.ended_at,
+                    winner
+                };
+            });
+
+            res.json({ history });
         } catch (error) {
             console.error('History API error:', error);
             res.status(500).json({ error: 'Internal error' });
@@ -207,12 +228,16 @@ function createRouter(deps) {
     // Contributors
     router.get('/contributors', async (req, res) => {
         try {
-            const result = await query(`
-                SELECT p.username FROM player_stats ps
-                JOIN players p ON ps.player_id = p.id
-                ORDER BY ps.total_points DESC
-            `);
-            res.json({ contributors: result.rows.map(r => r.username) });
+            const { data: result } = await supabase
+                .from('player_stats')
+                .select('players!inner(username), total_points')
+                .order('total_points', { ascending: false });
+
+            const contributors = (result || []).map(r => {
+                return r.players?.username || (Array.isArray(r.players) ? r.players[0]?.username : 'Unknown');
+            });
+
+            res.json({ contributors });
         } catch (error) {
             console.error('Contributors API error:', error);
             res.status(500).json({ error: 'Internal error' });
@@ -222,15 +247,24 @@ function createRouter(deps) {
     // Top messages
     router.get('/stats/top-messages', async (req, res) => {
         try {
-            const result = await query(`
-                SELECT p.username, COUNT(*) as count
-                FROM chat_messages cm
-                JOIN players p ON cm.player_id = p.id
-                GROUP BY p.username
-                ORDER BY count DESC
-                LIMIT 10
-            `);
-            res.json({ topMessages: result.rows.map(r => ({ username: r.username, count: parseInt(r.count) })) });
+            const { data: messages } = await supabase
+                .from('chat_messages')
+                .select('players!inner(username)')
+                .limit(5000);
+
+            // Count messages per user
+            const counts = {};
+            for (const m of messages || []) {
+                const username = m.players?.username || (Array.isArray(m.players) ? m.players[0]?.username : 'Unknown');
+                counts[username] = (counts[username] || 0) + 1;
+            }
+
+            const topMessages = Object.entries(counts)
+                .map(([username, count]) => ({ username, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 10);
+
+            res.json({ topMessages });
         } catch (error) {
             console.error('Top messages API error:', error);
             res.json({ topMessages: [] });
@@ -240,14 +274,28 @@ function createRouter(deps) {
     // Top emojis
     router.get('/stats/top-emojis', async (req, res) => {
         try {
-            const result = await query(`
-                SELECT emoji, COUNT(*) as count
-                FROM chat_messages, UNNEST(emojis) as emoji
-                GROUP BY emoji
-                ORDER BY count DESC
-                LIMIT 15
-            `);
-            res.json({ topEmojis: result.rows.map(r => ({ emoji: r.emoji, count: parseInt(r.count) })) });
+            const { data: messages } = await supabase
+                .from('chat_messages')
+                .select('emojis')
+                .not('emojis', 'is', null)
+                .limit(5000);
+
+            // Count emojis
+            const counts = {};
+            for (const m of messages || []) {
+                if (Array.isArray(m.emojis)) {
+                    for (const emoji of m.emojis) {
+                        counts[emoji] = (counts[emoji] || 0) + 1;
+                    }
+                }
+            }
+
+            const topEmojis = Object.entries(counts)
+                .map(([emoji, count]) => ({ emoji, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 15);
+
+            res.json({ topEmojis });
         } catch (error) {
             console.error('Top emojis API error:', error);
             res.json({ topEmojis: [] });
@@ -257,26 +305,30 @@ function createRouter(deps) {
     // Stream history
     router.get('/stats/streams', async (req, res) => {
         try {
-            const result = await query(`
-                SELECT id, title, game_name, started_at, ended_at, peak_viewers, total_chatters,
-                       EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 60 as duration_minutes
-                FROM twitch_streams
-                ORDER BY started_at DESC
-                LIMIT 20
-            `);
+            const { data: result } = await supabase
+                .from('twitch_streams')
+                .select('id, title, game_name, started_at, ended_at, peak_viewers, total_chatters')
+                .order('started_at', { ascending: false })
+                .limit(20);
 
-            res.json({
-                streams: result.rows.map(s => ({
+            const streams = (result || []).map(s => {
+                const start = new Date(s.started_at);
+                const end = s.ended_at ? new Date(s.ended_at) : new Date();
+                const durationMinutes = Math.round((end - start) / (1000 * 60));
+
+                return {
                     id: s.id,
                     title: s.title,
                     game: s.game_name,
                     started_at: s.started_at,
                     ended_at: s.ended_at,
-                    peak_viewers: parseInt(s.peak_viewers) || 0,
-                    chatters: parseInt(s.total_chatters) || 0,
-                    duration_minutes: Math.round(parseFloat(s.duration_minutes) || 0)
-                }))
+                    peak_viewers: s.peak_viewers || 0,
+                    chatters: s.total_chatters || 0,
+                    duration_minutes: durationMinutes
+                };
             });
+
+            res.json({ streams });
         } catch (error) {
             console.error('Streams API error:', error);
             res.json({ streams: [] });
@@ -286,27 +338,35 @@ function createRouter(deps) {
     // Watch time leaderboard
     router.get('/stats/watch-time', async (req, res) => {
         try {
-            const result = await query(`
-                SELECT 
-                    p.username,
-                    COUNT(DISTINCT vp.stream_id) as streams_watched,
-                    SUM(EXTRACT(EPOCH FROM (vp.last_seen - vp.first_seen)) / 60) as total_minutes,
-                    SUM(vp.message_count) as total_messages
-                FROM viewer_presence vp
-                JOIN players p ON vp.player_id = p.id
-                GROUP BY p.username
-                ORDER BY total_minutes DESC
-                LIMIT 15
-            `);
+            const { data: presences } = await supabase
+                .from('viewer_presence')
+                .select('stream_id, first_seen, last_seen, message_count, players!inner(username)');
 
-            res.json({
-                leaderboard: result.rows.map(r => ({
-                    username: r.username,
-                    streams_watched: parseInt(r.streams_watched) || 0,
-                    watch_time_minutes: Math.round(parseFloat(r.total_minutes) || 0),
-                    messages: parseInt(r.total_messages) || 0
+            // Aggregate by user
+            const userStats = {};
+            for (const p of presences || []) {
+                const username = p.players?.username || (Array.isArray(p.players) ? p.players[0]?.username : 'Unknown');
+                if (!userStats[username]) {
+                    userStats[username] = { streams: new Set(), totalMinutes: 0, totalMessages: 0 };
+                }
+                userStats[username].streams.add(p.stream_id);
+                const start = new Date(p.first_seen);
+                const end = new Date(p.last_seen);
+                userStats[username].totalMinutes += (end - start) / (1000 * 60);
+                userStats[username].totalMessages += p.message_count || 0;
+            }
+
+            const leaderboard = Object.entries(userStats)
+                .map(([username, data]) => ({
+                    username,
+                    streams_watched: data.streams.size,
+                    watch_time_minutes: Math.round(data.totalMinutes),
+                    messages: data.totalMessages
                 }))
-            });
+                .sort((a, b) => b.watch_time_minutes - a.watch_time_minutes)
+                .slice(0, 15);
+
+            res.json({ leaderboard });
         } catch (error) {
             console.error('Watch time API error:', error);
             res.json({ leaderboard: [] });
@@ -318,9 +378,13 @@ function createRouter(deps) {
         try {
             const username = req.params.username.toLowerCase();
 
-            const playerRes = await query('SELECT id FROM players WHERE username = $1', [username]);
+            const { data: player } = await supabase
+                .from('players')
+                .select('id')
+                .eq('username', username)
+                .maybeSingle();
 
-            if (playerRes.rows.length === 0) {
+            if (!player) {
                 return res.json({
                     username: req.params.username,
                     streams_watched: 0,
@@ -330,39 +394,55 @@ function createRouter(deps) {
                 });
             }
 
-            const playerId = playerRes.rows[0].id;
+            const playerId = player.id;
 
-            const statsResult = await query(`
-                SELECT 
-                    COUNT(DISTINCT vp.stream_id) as streams_watched,
-                    SUM(EXTRACT(EPOCH FROM (vp.last_seen - vp.first_seen)) / 60) as total_minutes
-                FROM viewer_presence vp
-                WHERE vp.player_id = $1
-            `, [playerId]);
+            const { data: presences } = await supabase
+                .from('viewer_presence')
+                .select('stream_id, first_seen, last_seen')
+                .eq('player_id', playerId);
 
-            const stats = statsResult.rows[0] || {};
+            const streams = new Set();
+            let totalMinutes = 0;
+            for (const p of presences || []) {
+                streams.add(p.stream_id);
+                const start = new Date(p.first_seen);
+                const end = new Date(p.last_seen);
+                totalMinutes += (end - start) / (1000 * 60);
+            }
 
-            const messageCountResult = await query(
-                'SELECT COUNT(*) as count FROM chat_messages WHERE player_id = $1',
-                [playerId]
-            );
-            const totalMessages = parseInt(messageCountResult.rows[0]?.count) || 0;
+            const { count: totalMessages } = await supabase
+                .from('chat_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('player_id', playerId);
 
-            const emojisResult = await query(`
-                SELECT emoji, COUNT(*) as count
-                FROM chat_messages, UNNEST(emojis) as emoji
-                WHERE player_id = $1
-                GROUP BY emoji
-                ORDER BY count DESC
-                LIMIT 5
-            `, [playerId]);
+            const { data: messages } = await supabase
+                .from('chat_messages')
+                .select('emojis')
+                .eq('player_id', playerId)
+                .not('emojis', 'is', null)
+                .limit(500);
+
+            // Count emojis
+            const emojiCounts = {};
+            for (const m of messages || []) {
+                if (Array.isArray(m.emojis)) {
+                    for (const emoji of m.emojis) {
+                        emojiCounts[emoji] = (emojiCounts[emoji] || 0) + 1;
+                    }
+                }
+            }
+
+            const topEmojis = Object.entries(emojiCounts)
+                .map(([emoji, count]) => ({ emoji, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 5);
 
             res.json({
                 username,
-                streams_watched: parseInt(stats.streams_watched) || 0,
-                watch_time_minutes: Math.round(parseFloat(stats.total_minutes) || 0),
-                messages: totalMessages,
-                top_emojis: emojisResult.rows.map(r => ({ emoji: r.emoji, count: parseInt(r.count) }))
+                streams_watched: streams.size,
+                watch_time_minutes: Math.round(totalMinutes),
+                messages: totalMessages || 0,
+                top_emojis: topEmojis
             });
         } catch (error) {
             console.error('Player watch time API error:', error);

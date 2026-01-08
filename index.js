@@ -1,9 +1,11 @@
 require('dotenv').config();
 const { TwitchClient } = require('./twitch-client');
-const { query, getOrCreatePlayer, initializeDatabase } = require('./db');
+const { supabase, getOrCreatePlayer, initializeDatabase } = require('./db');
 const { checkWord, calculatePoints } = require('./cemantix-api');
 const { startServer } = require('./server');
 const { gameSession, startSession, stopSession, getSessionStatus } = require('./game-controller');
+const embeddings = require('./utils/word2vec-embeddings');
+const path = require('path');
 
 // Configuration
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
@@ -29,17 +31,22 @@ async function loadAllRecords() {
     try {
         const currentMonth = getCurrentMonth();
 
-        const result = await query(`
-            SELECT lang, record_type, value, month FROM streamer_records
-            WHERE (record_type = 'alltime' AND month IS NULL)
-               OR (record_type = 'monthly' AND month = $1)
-        `, [currentMonth]);
+        // Get all records
+        const { data: result, error } = await supabase
+            .from('streamer_records')
+            .select('lang, record_type, value, month');
+
+        if (error) throw error;
 
         const records = { fr_alltime: null, en_alltime: null, fr_monthly: null, en_monthly: null };
 
-        for (const row of result.rows) {
-            const key = `${row.lang}_${row.record_type}`;
-            records[key] = row.value;
+        for (const row of result || []) {
+            // Filter: alltime has no month, monthly matches current month
+            if (row.record_type === 'alltime' && row.month === null) {
+                records[`${row.lang}_alltime`] = row.value;
+            } else if (row.record_type === 'monthly' && row.month === currentMonth) {
+                records[`${row.lang}_monthly`] = row.value;
+            }
         }
 
         return records;
@@ -53,48 +60,55 @@ async function saveRecord(lang, value) {
     try {
         const currentMonth = getCurrentMonth();
 
-        // Update or insert monthly record
-        const monthlyUpdate = await query(`
-            UPDATE streamer_records 
-            SET value = $2, updated_at = NOW()
-            WHERE lang = $1 AND record_type = 'monthly'
-        `, [lang, value]);
+        // Check if monthly record exists
+        const { data: monthlyExisting } = await supabase
+            .from('streamer_records')
+            .select('id')
+            .eq('lang', lang)
+            .eq('record_type', 'monthly')
+            .single();
 
-        if (monthlyUpdate.rowCount === 0) {
-            await query(`
-                INSERT INTO streamer_records (lang, record_type, value, month)
-                VALUES ($1, 'monthly', $2, $3)
-            `, [lang, value, currentMonth]);
+        if (monthlyExisting) {
+            await supabase
+                .from('streamer_records')
+                .update({ value, month: currentMonth, updated_at: new Date().toISOString() })
+                .eq('lang', lang)
+                .eq('record_type', 'monthly');
         } else {
-            // Also update the month field
-            await query(`
-                UPDATE streamer_records 
-                SET month = $2
-                WHERE lang = $1 AND record_type = 'monthly'
-            `, [lang, currentMonth]);
+            await supabase
+                .from('streamer_records')
+                .insert({ lang, record_type: 'monthly', value, month: currentMonth });
         }
 
         // Check if all-time record should be updated
-        const allTimeResult = await query(`
-            SELECT value FROM streamer_records
-            WHERE lang = $1 AND record_type = 'alltime'
-        `, [lang]);
+        const { data: allTimeResult } = await supabase
+            .from('streamer_records')
+            .select('value')
+            .eq('lang', lang)
+            .eq('record_type', 'alltime')
+            .single();
 
-        const currentAllTime = allTimeResult.rows[0]?.value;
+        const currentAllTime = allTimeResult?.value;
         let updatedAllTime = false;
 
-        if (currentAllTime === undefined || value < currentAllTime) {
-            const allTimeUpdate = await query(`
-                UPDATE streamer_records 
-                SET value = $2, updated_at = NOW()
-                WHERE lang = $1 AND record_type = 'alltime'
-            `, [lang, value]);
+        if (currentAllTime === undefined || currentAllTime === null || value < currentAllTime) {
+            const { data: allTimeExisting } = await supabase
+                .from('streamer_records')
+                .select('id')
+                .eq('lang', lang)
+                .eq('record_type', 'alltime')
+                .single();
 
-            if (allTimeUpdate.rowCount === 0) {
-                await query(`
-                    INSERT INTO streamer_records (lang, record_type, value, month)
-                    VALUES ($1, 'alltime', $2, NULL)
-                `, [lang, value]);
+            if (allTimeExisting) {
+                await supabase
+                    .from('streamer_records')
+                    .update({ value, updated_at: new Date().toISOString() })
+                    .eq('lang', lang)
+                    .eq('record_type', 'alltime');
+            } else {
+                await supabase
+                    .from('streamer_records')
+                    .insert({ lang, record_type: 'alltime', value, month: null });
             }
             updatedAllTime = true;
         }
@@ -201,18 +215,38 @@ async function handleStreamStart(stream) {
     currentTwitchStreamId = stream.id;
 
     try {
-        const result = await query(`
-            INSERT INTO twitch_streams (twitch_stream_id, title, game_name, started_at, peak_viewers)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (twitch_stream_id) DO UPDATE SET
-                title = $2, game_name = $3, peak_viewers = GREATEST(twitch_streams.peak_viewers, $5)
-            RETURNING id
-        `, [stream.id, stream.title, stream.game_name, stream.started_at, stream.viewer_count]);
+        // Try to get existing stream or insert new one
+        const { data: existing } = await supabase
+            .from('twitch_streams')
+            .select('id, peak_viewers')
+            .eq('twitch_stream_id', stream.id)
+            .single();
 
-        currentStreamId = result.rows[0].id;
+        if (existing) {
+            // Update existing
+            const newPeak = Math.max(existing.peak_viewers || 0, stream.viewer_count || 0);
+            await supabase
+                .from('twitch_streams')
+                .update({ title: stream.title, game_name: stream.game_name, peak_viewers: newPeak })
+                .eq('id', existing.id);
+            currentStreamId = existing.id;
+        } else {
+            // Insert new
+            const { data: newStream } = await supabase
+                .from('twitch_streams')
+                .insert({
+                    twitch_stream_id: stream.id,
+                    title: stream.title,
+                    game_name: stream.game_name,
+                    started_at: stream.started_at,
+                    peak_viewers: stream.viewer_count || 0
+                })
+                .select('id')
+                .single();
+            currentStreamId = newStream?.id;
+        }
+
         console.log(`📊 Stream session created: ID ${currentStreamId}`);
-
-        // Start polling chatters for watch time
         startChatterPolling();
     } catch (error) {
         console.error('Error creating stream session:', error);
@@ -223,12 +257,19 @@ async function handleStreamEnd() {
     console.log('⚫ Stream ended');
 
     try {
-        await query(`
-            UPDATE twitch_streams 
-            SET ended_at = NOW(),
-                total_chatters = (SELECT COUNT(DISTINCT player_id) FROM viewer_presence WHERE stream_id = $1)
-            WHERE id = $1
-        `, [currentStreamId]);
+        // Get count of unique chatters
+        const { count: chatterCount } = await supabase
+            .from('viewer_presence')
+            .select('player_id', { count: 'exact', head: true })
+            .eq('stream_id', currentStreamId);
+
+        await supabase
+            .from('twitch_streams')
+            .update({
+                ended_at: new Date().toISOString(),
+                total_chatters: chatterCount || 0
+            })
+            .eq('id', currentStreamId);
 
         console.log(`📊 Stream session ${currentStreamId} closed`);
     } catch (error) {
@@ -237,8 +278,6 @@ async function handleStreamEnd() {
 
     currentStreamId = null;
     currentTwitchStreamId = null;
-
-    // Stop polling chatters
     stopChatterPolling();
 }
 
@@ -246,13 +285,23 @@ async function updateStreamStats(stream) {
     if (!currentStreamId) return;
 
     try {
-        await query(`
-            UPDATE twitch_streams 
-            SET peak_viewers = GREATEST(peak_viewers, $2),
-                title = $3,
-                game_name = $4
-            WHERE id = $1
-        `, [currentStreamId, stream.viewer_count, stream.title, stream.game_name]);
+        // Get current peak to compare
+        const { data: current } = await supabase
+            .from('twitch_streams')
+            .select('peak_viewers')
+            .eq('id', currentStreamId)
+            .single();
+
+        const newPeak = Math.max(current?.peak_viewers || 0, stream.viewer_count || 0);
+
+        await supabase
+            .from('twitch_streams')
+            .update({
+                peak_viewers: newPeak,
+                title: stream.title,
+                game_name: stream.game_name
+            })
+            .eq('id', currentStreamId);
     } catch (error) {
         console.error('Error updating stream stats:', error);
     }
@@ -262,13 +311,33 @@ async function trackViewerPresence(playerId) {
     if (!currentStreamId) return;
 
     try {
-        await query(`
-            INSERT INTO viewer_presence (stream_id, player_id, first_seen, last_seen, message_count)
-            VALUES ($1, $2, NOW(), NOW(), 1)
-            ON CONFLICT (stream_id, player_id) DO UPDATE SET
-                last_seen = NOW(),
-                message_count = viewer_presence.message_count + 1
-        `, [currentStreamId, playerId]);
+        // Check if presence exists
+        const { data: existing } = await supabase
+            .from('viewer_presence')
+            .select('id, message_count')
+            .eq('stream_id', currentStreamId)
+            .eq('player_id', playerId)
+            .single();
+
+        if (existing) {
+            await supabase
+                .from('viewer_presence')
+                .update({
+                    last_seen: new Date().toISOString(),
+                    message_count: (existing.message_count || 0) + 1
+                })
+                .eq('id', existing.id);
+        } else {
+            await supabase
+                .from('viewer_presence')
+                .insert({
+                    stream_id: currentStreamId,
+                    player_id: playerId,
+                    first_seen: new Date().toISOString(),
+                    last_seen: new Date().toISOString(),
+                    message_count: 1
+                });
+        }
     } catch (error) {
         console.error('Error tracking presence:', error);
     }
@@ -289,18 +358,34 @@ async function pollChatters() {
 
         for (const chatter of chatters) {
             try {
-                // Get or create player
                 const playerId = await getOrCreatePlayer(chatter.user_login);
 
-                // Update presence - this will track their watch time
-                await query(`
-                    INSERT INTO viewer_presence (stream_id, player_id, first_seen, last_seen, message_count)
-                    VALUES ($1, $2, NOW(), NOW(), 0)
-                    ON CONFLICT (stream_id, player_id) DO UPDATE SET
-                        last_seen = NOW()
-                `, [currentStreamId, playerId]);
+                // Check if presence exists
+                const { data: existing } = await supabase
+                    .from('viewer_presence')
+                    .select('id')
+                    .eq('stream_id', currentStreamId)
+                    .eq('player_id', playerId)
+                    .single();
+
+                if (existing) {
+                    await supabase
+                        .from('viewer_presence')
+                        .update({ last_seen: new Date().toISOString() })
+                        .eq('id', existing.id);
+                } else {
+                    await supabase
+                        .from('viewer_presence')
+                        .insert({
+                            stream_id: currentStreamId,
+                            player_id: playerId,
+                            first_seen: new Date().toISOString(),
+                            last_seen: new Date().toISOString(),
+                            message_count: 0
+                        });
+                }
             } catch (err) {
-                // Ignore individual errors, continue with other chatters
+                // Ignore individual errors
             }
         }
     } catch (error) {
@@ -347,12 +432,15 @@ async function handleMessage(msg) {
     try {
         const playerId = await getOrCreatePlayer(username);
         const emotes = extractEmotes(msg.message);
-        await query(
-            'INSERT INTO chat_messages (player_id, content, emojis) VALUES ($1, $2, $3)',
-            [playerId, msg.message, emotes.length > 0 ? emotes : null]
-        );
 
-        // Track viewer presence for watch time stats
+        await supabase
+            .from('chat_messages')
+            .insert({
+                player_id: playerId,
+                content: msg.message,
+                emojis: emotes.length > 0 ? emotes : null
+            });
+
         await trackViewerPresence(playerId);
     } catch (err) {
         console.error('Error tracking message:', err);
@@ -366,6 +454,74 @@ async function handleMessage(msg) {
         // === Commande publique: !site ===
         if (command === 'site') {
             twitchClient.say(msg.channel, `🌐 Site: https://www.xsgwen.fr`);
+            return;
+        }
+
+        // === Commande publique: !guess <mot> (Cemantig) ===
+        if (command === 'guess' || command === 'g') {
+            const word = args[0]?.toLowerCase().trim();
+
+            if (!word) {
+                twitchClient.say(msg.channel, `@${msg.username} Utilisation: !guess <mot>`);
+                return;
+            }
+
+            // Check if embeddings are loaded
+            if (!embeddings.loaded) {
+                twitchClient.say(msg.channel, `@${msg.username} Cemantig n'est pas encore prêt, réessaie dans quelques secondes.`);
+                return;
+            }
+
+            // Check if there's an active session
+            try {
+                const statusRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/status`);
+                const status = await statusRes.json();
+
+                if (!status.active) {
+                    twitchClient.say(msg.channel, `@${msg.username} Pas de session Cemantig en cours !`);
+                    return;
+                }
+
+                // Check if word exists in vocabulary
+                if (!embeddings.hasWord(word)) {
+                    twitchClient.say(msg.channel, `@${msg.username} "${word}" n'est pas dans mon vocabulaire.`);
+                    return;
+                }
+
+                // Get secret word from a separate endpoint (bot needs to know it)
+                const secretRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/secret`);
+                const secretData = await secretRes.json();
+
+                if (!secretData.secret_word) {
+                    twitchClient.say(msg.channel, `@${msg.username} Erreur: impossible de récupérer le mot secret.`);
+                    return;
+                }
+
+                // Calculate similarity locally
+                const similarity = embeddings.getSimilarity(word, secretData.secret_word);
+
+                // Send to API to save
+                const guessRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/guess`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, word, similarity })
+                });
+                const guessData = await guessRes.json();
+
+                if (guessData.already_guessed) {
+                    // Don't respond for already guessed words - let the site handle it
+                    return;
+                }
+
+                // Only announce the winner in chat
+                if (guessData.is_winner) {
+                    twitchClient.say(msg.channel, `🎉 BRAVO @${msg.username} ! "${word}" était le mot secret ! 🎉`);
+                }
+                // Normal guesses: no chat response, let the site display everything
+            } catch (error) {
+                console.error('Cemantig guess error:', error);
+                // Only respond on actual errors, not for normal flow
+            }
             return;
         }
 
@@ -430,26 +586,34 @@ async function handleMessage(msg) {
         if (command === 'stats') {
             try {
                 const targetUser = args[0]?.replace('@', '').toLowerCase() || username;
-                const playerResult = await query('SELECT id FROM players WHERE username = $1', [targetUser]);
 
-                if (playerResult.rows.length === 0) {
+                const { data: player } = await supabase
+                    .from('players')
+                    .select('id')
+                    .eq('username', targetUser)
+                    .single();
+
+                if (!player) {
                     twitchClient.say(msg.channel, `@${msg.username} Aucune stat trouvée pour ${targetUser}`);
                     return;
                 }
 
-                const playerId = playerResult.rows[0].id;
+                const playerId = player.id;
 
-                // Get cemantix stats
-                const statsResult = await query(`
-                    SELECT total_points, games_played FROM player_stats WHERE player_id = $1
-                `, [playerId]);
+                const { data: stats } = await supabase
+                    .from('player_stats')
+                    .select('total_points, games_played')
+                    .eq('player_id', playerId)
+                    .single();
 
-                // Get message count
-                const msgResult = await query('SELECT COUNT(*) FROM chat_messages WHERE player_id = $1', [playerId]);
+                const { count: messageCount } = await supabase
+                    .from('chat_messages')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('player_id', playerId);
 
-                const cemantixPoints = statsResult.rows[0]?.total_points || 0;
-                const gamesPlayed = statsResult.rows[0]?.games_played || 0;
-                const messages = parseInt(msgResult.rows[0]?.count) || 0;
+                const cemantixPoints = stats?.total_points || 0;
+                const gamesPlayed = stats?.games_played || 0;
+                const messages = messageCount || 0;
 
                 twitchClient.say(msg.channel, `📊 ${targetUser} → ${messages} messages | Cemantix: ${cemantixPoints} pts (${gamesPlayed} parties)`);
             } catch (err) {
@@ -485,12 +649,12 @@ async function handleMessage(msg) {
                 const gameName = lang === 'en' ? 'Cemantle' : 'Cémantix';
 
                 // Create session in database
-                const sessionResult = await query(`
-                    INSERT INTO game_sessions (lang, started_at)
-                    VALUES ($1, NOW())
-                    RETURNING id
-                `, [lang]);
-                const sessionId = sessionResult.rows[0].id;
+                const { data: newSession } = await supabase
+                    .from('game_sessions')
+                    .insert({ lang: lang, started_at: new Date().toISOString() })
+                    .select('id')
+                    .single();
+                const sessionId = newSession?.id;
 
                 // Initialize session
                 gameSession.active = true;
@@ -567,8 +731,8 @@ async function handleMessage(msg) {
                     return;
                 }
 
-                await query('DELETE FROM player_stats');
-                await query('DELETE FROM session_guesses');
+                await supabase.from('player_stats').delete().neq('player_id', 0);
+                await supabase.from('session_guesses').delete().neq('session_id', 0);
                 twitchClient.say(msg.channel, `🗑️ Leaderboard global réinitialisé !`);
                 return;
             }
@@ -576,22 +740,21 @@ async function handleMessage(msg) {
             // === !cemantix top ===
             if (action === 'top' || action === 'leaderboard') {
                 try {
-                    const topResult = await query(`
-                        SELECT p.username, ps.total_points
-                        FROM player_stats ps
-                        JOIN players p ON ps.player_id = p.id
-                        ORDER BY ps.total_points DESC
-                        LIMIT 5
-                    `);
+                    const { data: topResult } = await supabase
+                        .from('player_stats')
+                        .select('total_points, players!inner(username)')
+                        .order('total_points', { ascending: false })
+                        .limit(5);
 
-                    if (topResult.rows.length === 0) {
+                    if (!topResult || topResult.length === 0) {
                         twitchClient.say(msg.channel, `🏆 Leaderboard vide pour l'instant !`);
                         return;
                     }
 
-                    const topList = topResult.rows.map((r, i) => {
+                    const topList = topResult.map((r, i) => {
                         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-                        return `${medal} ${r.username} (${r.total_points} pts)`;
+                        const username = r.players?.username || (Array.isArray(r.players) ? r.players[0]?.username : 'Unknown');
+                        return `${medal} ${username} (${r.total_points} pts)`;
                     }).join(' | ');
 
                     twitchClient.say(msg.channel, `🏆 Top Cemantix: ${topList}`);
@@ -646,10 +809,23 @@ async function handleMessage(msg) {
 
     // Store guess in database
     const playerId = await getOrCreatePlayer(username);
-    await query(`
-        INSERT INTO session_guesses (session_id, player_id, word, score, degree, points)
-        VALUES ($1, $2, $3, $4, $5, $6)
-    `, [gameSession.sessionId, playerId, word, result.score, degree, points]);
+    await supabase
+        .from('session_guesses')
+        .insert({
+            session_id: gameSession.sessionId,
+            player_id: playerId,
+            word: word,
+            score: result.score,
+            degree: degree,
+            points: points
+        });
+
+    // Broadcast the new guess for Cemantix page real-time updates
+    await supabase.channel('cemantix-broadcast').send({
+        type: 'broadcast',
+        event: 'new_guess',
+        payload: { username, word, points }
+    });
 
     // If winner found
     if (isWinner) {
@@ -675,46 +851,74 @@ async function endGameSession(channel) {
     }
 
     // Get all guesses from this session with aggregated points per player
-    const guessesResult = await query(`
-        SELECT p.username, p.id as player_id, SUM(sg.points) as total_points
-        FROM session_guesses sg
-        JOIN players p ON sg.player_id = p.id
-        WHERE sg.session_id = $1
-        GROUP BY p.id, p.username
-        ORDER BY total_points DESC
-    `, [sessionId]);
+    const { data: guesses } = await supabase
+        .from('session_guesses')
+        .select('points, players!inner(id, username)')
+        .eq('session_id', sessionId);
 
+    // Aggregate points by player
     const sessionPoints = {};
-    for (const row of guessesResult.rows) {
-        sessionPoints[row.username] = parseInt(row.total_points);
+    for (const g of guesses || []) {
+        const username = g.players?.username || (Array.isArray(g.players) ? g.players[0]?.username : 'Unknown');
+        const playerId = g.players?.id || (Array.isArray(g.players) ? g.players[0]?.id : null);
+        if (!sessionPoints[username]) {
+            sessionPoints[username] = { points: 0, playerId };
+        }
+        sessionPoints[username].points += g.points || 0;
     }
 
     // Update session in database
-    await query(`
-        UPDATE game_sessions
-        SET word = $1, winner_id = $2, duration = $3, guess_count = $4, player_count = $5, ended_at = NOW()
-        WHERE id = $6
-    `, [winningWord, winnerId, duration, guessCount, Object.keys(sessionPoints).length, sessionId]);
+    await supabase
+        .from('game_sessions')
+        .update({
+            word: winningWord,
+            winner_id: winnerId,
+            duration: duration,
+            guess_count: guessCount,
+            player_count: Object.keys(sessionPoints).length,
+            ended_at: new Date().toISOString()
+        })
+        .eq('id', sessionId);
 
     // Update player stats
-    for (const [username, points] of Object.entries(sessionPoints)) {
-        const playerId = await getOrCreatePlayer(username);
+    for (const [username, data] of Object.entries(sessionPoints)) {
+        const playerId = data.playerId || await getOrCreatePlayer(username);
+        const points = data.points;
+        const wordsFound = username === winner ? 1 : 0;
 
-        // Upsert player stats
-        await query(`
-            INSERT INTO player_stats (player_id, games_played, total_points, best_session_score, words_found)
-            VALUES ($1, 1, $2, $2, $3)
-            ON CONFLICT (player_id) DO UPDATE SET
-                games_played = player_stats.games_played + 1,
-                total_points = player_stats.total_points + $2,
-                best_session_score = GREATEST(player_stats.best_session_score, $2),
-                words_found = player_stats.words_found + $3
-        `, [playerId, points, username === winner ? 1 : 0]);
+        // Check if player stats exist
+        const { data: existing } = await supabase
+            .from('player_stats')
+            .select('games_played, total_points, best_session_score, words_found')
+            .eq('player_id', playerId)
+            .single();
+
+        if (existing) {
+            await supabase
+                .from('player_stats')
+                .update({
+                    games_played: existing.games_played + 1,
+                    total_points: existing.total_points + points,
+                    best_session_score: Math.max(existing.best_session_score, points),
+                    words_found: existing.words_found + wordsFound
+                })
+                .eq('player_id', playerId);
+        } else {
+            await supabase
+                .from('player_stats')
+                .insert({
+                    player_id: playerId,
+                    games_played: 1,
+                    total_points: points,
+                    best_session_score: points,
+                    words_found: wordsFound
+                });
+        }
     }
 
     // Sort by points for display
     const sortedPlayers = Object.entries(sessionPoints)
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => b[1].points - a[1].points)
         .slice(0, 5);
 
     // Reset session state
@@ -739,7 +943,7 @@ async function endGameSession(channel) {
     // Show top players
     if (sortedPlayers.length > 0) {
         const topStr = sortedPlayers
-            .map((p, i) => `${i + 1}. ${p[0]}: ${p[1]} pts`)
+            .map((p, i) => `${i + 1}. ${p[0]}: ${p[1].points} pts`)
             .join(' | ');
         twitchClient.say(channel, `🏆 Top joueurs: ${topStr}`);
     }
@@ -802,6 +1006,12 @@ async function start() {
 
     // Initialize database
     await initializeDatabase();
+
+    // Load word embeddings for Cemantig (in background, non-blocking)
+    const embeddingsPath = path.join(__dirname, 'data', 'frWiki_no_phrase_no_postag_1000_skip_cut100.bin');
+    embeddings.load(embeddingsPath).catch(err => {
+        console.error('Failed to load embeddings:', err);
+    });
 
     // Initialize Twitch client
     await initializeTwitchClient();

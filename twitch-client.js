@@ -6,7 +6,7 @@
 
 const { EventEmitter } = require('events');
 const WebSocket = require('ws');
-const { query } = require('./db');
+const { supabase } = require('./db');
 
 class TwitchClient extends EventEmitter {
     constructor(config) {
@@ -89,30 +89,29 @@ class TwitchClient extends EventEmitter {
      */
     async loadBotToken() {
         try {
-            const result = await query(
-                `SELECT access_token, refresh_token, expires_at, user_id
-                 FROM twitch_tokens 
-                 WHERE token_type = 'bot'
-                 LIMIT 1`
-            );
+            const { data: token, error } = await supabase
+                .from('twitch_tokens')
+                .select('access_token, refresh_token, expires_at, user_id')
+                .eq('token_type', 'bot')
+                .single();
 
-            if (result.rows.length > 0) {
-                const token = result.rows[0];
-                this.botAccessToken = token.access_token;
-                this.botRefreshToken = token.refresh_token;
-                this.botTokenExpiry = new Date(token.expires_at).getTime();
-                this.botUserId = token.user_id;
-
-                // Check if token needs refresh
-                if (Date.now() >= this.botTokenExpiry - 300000) {
-                    await this.refreshBotToken();
-                }
-
-                console.log(`✅ Bot token loaded for user ID: ${this.botUserId}`);
-                return this.botAccessToken;
+            if (error || !token) {
+                console.log('⚠️ No bot token found. Visit /auth/bot-login to authorize.');
+                return null;
             }
-            console.log('⚠️ No bot token found. Visit /auth/bot-login to authorize.');
-            return null;
+
+            this.botAccessToken = token.access_token;
+            this.botRefreshToken = token.refresh_token;
+            this.botTokenExpiry = new Date(token.expires_at).getTime();
+            this.botUserId = token.user_id;
+
+            // Check if token needs refresh
+            if (Date.now() >= this.botTokenExpiry - 300000) {
+                await this.refreshBotToken();
+            }
+
+            console.log(`✅ Bot token loaded for user ID: ${this.botUserId}`);
+            return this.botAccessToken;
         } catch (error) {
             console.error('❌ Failed to load bot token:', error);
             return null;
@@ -150,12 +149,15 @@ class TwitchClient extends EventEmitter {
             this.botTokenExpiry = Date.now() + (data.expires_in * 1000);
 
             // Update in database
-            await query(
-                `UPDATE twitch_tokens 
-                 SET access_token = $1, refresh_token = $2, expires_at = $3, updated_at = NOW()
-                 WHERE token_type = 'bot'`,
-                [data.access_token, data.refresh_token, new Date(this.botTokenExpiry)]
-            );
+            await supabase
+                .from('twitch_tokens')
+                .update({
+                    access_token: data.access_token,
+                    refresh_token: data.refresh_token,
+                    expires_at: new Date(this.botTokenExpiry).toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .eq('token_type', 'bot');
 
             console.log('✅ Bot token refreshed');
             return this.botAccessToken;
@@ -170,30 +172,47 @@ class TwitchClient extends EventEmitter {
      */
     async loadBroadcasterToken() {
         try {
-            const result = await query(
-                `SELECT access_token, refresh_token, expires_at, user_id
-                 FROM twitch_tokens 
-                 WHERE token_type = 'broadcaster'
-                 LIMIT 1`
-            );
+            // Use the broadcasterUserId from config to ensure we get the correct token
+            const targetUserId = this.broadcasterUserId || process.env.TWITCH_BROADCASTER_ID;
 
-            if (result.rows.length > 0) {
-                const token = result.rows[0];
+            const { data: token, error } = await supabase
+                .from('twitch_tokens')
+                .select('access_token, refresh_token, expires_at, user_id')
+                .eq('token_type', 'broadcaster')
+                .eq('user_id', targetUserId)
+                .single();
+
+            if (error || !token) {
+                // Fallback: try to get any broadcaster token
+                const { data: fallbackToken } = await supabase
+                    .from('twitch_tokens')
+                    .select('access_token, refresh_token, expires_at, user_id')
+                    .eq('token_type', 'broadcaster')
+                    .single();
+
+                if (!fallbackToken) {
+                    console.log('⚠️ No broadcaster token found. Broadcaster should visit /auth/bot-authorize');
+                    return null;
+                }
+
+                this.broadcasterAccessToken = fallbackToken.access_token;
+                this.broadcasterRefreshToken = fallbackToken.refresh_token;
+                this.broadcasterTokenExpiry = new Date(fallbackToken.expires_at).getTime();
+                this.broadcasterUserId = fallbackToken.user_id;
+            } else {
                 this.broadcasterAccessToken = token.access_token;
                 this.broadcasterRefreshToken = token.refresh_token;
                 this.broadcasterTokenExpiry = new Date(token.expires_at).getTime();
                 this.broadcasterUserId = token.user_id;
-
-                // Check if token needs refresh
-                if (Date.now() >= this.broadcasterTokenExpiry - 300000) {
-                    await this.refreshBroadcasterToken();
-                }
-
-                console.log(`✅ Broadcaster token loaded for user ID: ${this.broadcasterUserId}`);
-                return this.broadcasterAccessToken;
             }
-            console.log('⚠️ No broadcaster token found. Broadcaster should visit /auth/bot-authorize');
-            return null;
+
+            // Check if token needs refresh
+            if (Date.now() >= this.broadcasterTokenExpiry - 300000) {
+                await this.refreshBroadcasterToken();
+            }
+
+            console.log(`✅ Broadcaster token loaded for user ID: ${this.broadcasterUserId}`);
+            return this.broadcasterAccessToken;
         } catch (error) {
             console.error('❌ Failed to load broadcaster token:', error);
             return null;
@@ -231,12 +250,15 @@ class TwitchClient extends EventEmitter {
             this.broadcasterTokenExpiry = Date.now() + (data.expires_in * 1000);
 
             // Update in database
-            await query(
-                `UPDATE twitch_tokens 
-                 SET access_token = $1, refresh_token = $2, expires_at = $3, updated_at = NOW()
-                 WHERE token_type = 'broadcaster'`,
-                [data.access_token, data.refresh_token, new Date(this.broadcasterTokenExpiry)]
-            );
+            await supabase
+                .from('twitch_tokens')
+                .update({
+                    access_token: data.access_token,
+                    refresh_token: data.refresh_token,
+                    expires_at: new Date(this.broadcasterTokenExpiry).toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .eq('token_type', 'broadcaster');
 
             console.log('✅ Broadcaster token refreshed');
             return this.broadcasterAccessToken;
@@ -854,6 +876,7 @@ class TwitchClient extends EventEmitter {
         try {
             const token = await this.getAppAccessToken();
 
+            // Use the correct endpoint for channel-specific emotes
             const response = await fetch(
                 `https://api.twitch.tv/helix/chat/emotes?broadcaster_id=${this.broadcasterUserId}`,
                 {
@@ -873,9 +896,14 @@ class TwitchClient extends EventEmitter {
             const data = await response.json();
 
             // Extract just the emote names for easy matching
-            const emoteNames = data.data.map(emote => emote.name);
+            const emoteNames = data.data ? data.data.map(emote => emote.name) : [];
 
-            console.log(`😀 Loaded ${emoteNames.length} channel emotes`);
+            if (emoteNames.length > 0) {
+                console.log(`😀 Loaded ${emoteNames.length} channel emotes`);
+                console.log(`😀 Channel emotes: ${emoteNames.slice(0, 5).join(', ')}${emoteNames.length > 5 ? '...' : ''}`);
+            } else {
+                console.log(`😀 Loaded 0 channel emotes (broadcaster_id: ${this.broadcasterUserId})`);
+            }
             return emoteNames;
         } catch (error) {
             console.error('❌ Error getting channel emotes:', error);

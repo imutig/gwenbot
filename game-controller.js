@@ -3,7 +3,7 @@
  * Allows both the bot and web server to control game sessions
  */
 
-const { query } = require('./db');
+const { supabase } = require('./db');
 
 // Game session state (shared between bot and server)
 const gameSession = {
@@ -39,13 +39,18 @@ async function startSession(lang = 'fr') {
     }
 
     try {
-        const sessionResult = await query(`
-            INSERT INTO game_sessions (lang, started_at)
-            VALUES ($1, NOW())
-            RETURNING id
-        `, [lang]);
+        const { data, error } = await supabase
+            .from('game_sessions')
+            .insert({
+                lang: lang,
+                started_at: new Date().toISOString()
+            })
+            .select('id')
+            .single();
 
-        const sessionId = sessionResult.rows[0].id;
+        if (error) throw error;
+
+        const sessionId = data.id;
 
         gameSession.active = true;
         gameSession.lang = lang;
@@ -78,11 +83,16 @@ async function stopSession() {
     const gameName = gameSession.lang === 'en' ? 'Cemantle' : 'Cémantix';
 
     try {
-        await query(`
-            UPDATE game_sessions
-            SET ended_at = NOW(), duration = $2, guess_count = $3
-            WHERE id = $1
-        `, [gameSession.sessionId, duration, guessCount]);
+        const { error } = await supabase
+            .from('game_sessions')
+            .update({
+                ended_at: new Date().toISOString(),
+                duration: duration,
+                guess_count: guessCount
+            })
+            .eq('id', gameSession.sessionId);
+
+        if (error) throw error;
 
         // Get top players
         const sortedPlayers = Object.entries(gameSession.playerScores || {})

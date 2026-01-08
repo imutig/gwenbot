@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { WebSocketServer } = require('ws');
 const SudokuEngine = require('../sudoku-engine');
-const { query, getOrCreatePlayer } = require('../db');
+const { supabase, getOrCreatePlayer } = require('../db');
 
 // Active game state (in-memory for speed)
 let currentGame = null;
@@ -144,21 +144,29 @@ async function handleMessage(ws, message) {
 async function createGame(mode, difficulty, hostId) {
     const { puzzle, solution } = SudokuEngine.generatePuzzle(difficulty);
 
-    const result = await query(
-        `INSERT INTO sudoku_games (mode, difficulty, puzzle, solution, status)
-         VALUES ($1, $2, $3, $4, 'waiting')
-         RETURNING id`,
-        [mode, difficulty, puzzle, solution]
-    );
+    const { data: gameData } = await supabase
+        .from('sudoku_games')
+        .insert({
+            mode,
+            difficulty,
+            puzzle,
+            solution,
+            status: 'waiting'
+        })
+        .select('id')
+        .single();
 
-    const gameId = result.rows[0].id;
+    const gameId = gameData?.id;
 
     // Add host as player
-    await query(
-        `INSERT INTO sudoku_players (game_id, player_id, role, progress)
-         VALUES ($1, $2, 'host', $3)`,
-        [gameId, hostId, puzzle]
-    );
+    await supabase
+        .from('sudoku_players')
+        .insert({
+            game_id: gameId,
+            player_id: hostId,
+            role: 'host',
+            progress: puzzle
+        });
 
     currentGame = {
         id: gameId,
@@ -189,11 +197,14 @@ async function selectChallenger(username) {
     const playerId = await getOrCreatePlayer(username);
 
     // Add challenger to database
-    await query(
-        `INSERT INTO sudoku_players (game_id, player_id, role, progress)
-         VALUES ($1, $2, 'challenger', $3)`,
-        [currentGame.id, playerId, currentGame.puzzle]
-    );
+    await supabase
+        .from('sudoku_players')
+        .insert({
+            game_id: currentGame.id,
+            player_id: playerId,
+            role: 'challenger',
+            progress: currentGame.puzzle
+        });
 
     currentGame.challengerId = playerId;
     currentGame.challengerProgress = currentGame.puzzle;
@@ -215,10 +226,10 @@ async function startGame() {
     currentGame.status = 'playing';
     currentGame.startedAt = new Date();
 
-    await query(
-        `UPDATE sudoku_games SET status = 'playing', started_at = NOW() WHERE id = $1`,
-        [currentGame.id]
-    );
+    await supabase
+        .from('sudoku_games')
+        .update({ status: 'playing', started_at: new Date().toISOString() })
+        .eq('id', currentGame.id);
 
     broadcastGameState();
 }
@@ -241,10 +252,11 @@ async function updateCell(username, index, value) {
     const playerId = await getOrCreatePlayer(username);
     const cellsFilled = SudokuEngine.countFilled(currentGame[progressKey]);
 
-    await query(
-        `UPDATE sudoku_players SET progress = $1, cells_filled = $2 WHERE game_id = $3 AND player_id = $4`,
-        [currentGame[progressKey], cellsFilled, currentGame.id, playerId]
-    );
+    await supabase
+        .from('sudoku_players')
+        .update({ progress: currentGame[progressKey], cells_filled: cellsFilled })
+        .eq('game_id', currentGame.id)
+        .eq('player_id', playerId);
 
     // Check if complete
     if (SudokuEngine.validateSolution(currentGame[progressKey], currentGame.solution)) {
@@ -265,15 +277,16 @@ async function finishGame(winnerId, winnerName) {
     currentGame.winnerId = winnerId;
     currentGame.winnerName = winnerName;
 
-    await query(
-        `UPDATE sudoku_games SET status = 'finished', finished_at = NOW(), winner_id = $1 WHERE id = $2`,
-        [winnerId, currentGame.id]
-    );
+    await supabase
+        .from('sudoku_games')
+        .update({ status: 'finished', finished_at: new Date().toISOString(), winner_id: winnerId })
+        .eq('id', currentGame.id);
 
-    await query(
-        `UPDATE sudoku_players SET finished_at = NOW() WHERE game_id = $1 AND player_id = $2`,
-        [currentGame.id, winnerId]
-    );
+    await supabase
+        .from('sudoku_players')
+        .update({ finished_at: new Date().toISOString() })
+        .eq('game_id', currentGame.id)
+        .eq('player_id', winnerId);
 
     broadcastGameState();
 
@@ -290,10 +303,10 @@ async function finishGame(winnerId, winnerName) {
 async function cancelGame() {
     if (!currentGame) return;
 
-    await query(
-        `UPDATE sudoku_games SET status = 'cancelled' WHERE id = $1`,
-        [currentGame.id]
-    );
+    await supabase
+        .from('sudoku_games')
+        .update({ status: 'cancelled' })
+        .eq('id', currentGame.id);
 
     currentGame = null;
     challengerQueue = [];
@@ -446,19 +459,34 @@ router.post('/cancel', async (req, res) => {
 // Get game history
 router.get('/history', async (req, res) => {
     try {
-        const result = await query(`
-            SELECT 
-                g.id, g.mode, g.difficulty, g.status, g.created_at, g.finished_at,
-                p.username as winner_name,
-                (SELECT COUNT(*) FROM sudoku_players WHERE game_id = g.id) as player_count
-            FROM sudoku_games g
-            LEFT JOIN players p ON g.winner_id = p.id
-            WHERE g.status IN ('finished', 'cancelled')
-            ORDER BY g.created_at DESC
-            LIMIT 20
-        `);
+        // Get games with winners
+        const { data: games } = await supabase
+            .from('sudoku_games')
+            .select('id, mode, difficulty, status, created_at, finished_at, players!winner_id(username)')
+            .in('status', ['finished', 'cancelled'])
+            .order('created_at', { ascending: false })
+            .limit(20);
 
-        res.json({ history: result.rows });
+        // Get player counts
+        const history = await Promise.all((games || []).map(async (g) => {
+            const { count } = await supabase
+                .from('sudoku_players')
+                .select('*', { count: 'exact', head: true })
+                .eq('game_id', g.id);
+
+            return {
+                id: g.id,
+                mode: g.mode,
+                difficulty: g.difficulty,
+                status: g.status,
+                created_at: g.created_at,
+                finished_at: g.finished_at,
+                winner_name: g.players?.username || (Array.isArray(g.players) ? g.players[0]?.username : null),
+                player_count: count || 0
+            };
+        }));
+
+        res.json({ history });
     } catch (error) {
         console.error('Error fetching history:', error);
         res.status(500).json({ error: 'Failed to fetch history' });
@@ -470,18 +498,37 @@ router.get('/stats/:username', async (req, res) => {
     try {
         const { username } = req.params;
 
-        const result = await query(`
-            SELECT 
-                COUNT(*) FILTER (WHERE g.winner_id = p.id) as wins,
-                COUNT(*) as games_played,
-                COUNT(*) FILTER (WHERE g.mode = 'multi') as multi_games
-            FROM sudoku_players sp
-            JOIN players p ON sp.player_id = p.id
-            JOIN sudoku_games g ON sp.game_id = g.id
-            WHERE p.username = $1 AND g.status = 'finished'
-        `, [username.toLowerCase()]);
+        // Get player
+        const { data: player } = await supabase
+            .from('players')
+            .select('id')
+            .eq('username', username.toLowerCase())
+            .single();
 
-        res.json(result.rows[0] || { wins: 0, games_played: 0 });
+        if (!player) {
+            return res.json({ wins: 0, games_played: 0, multi_games: 0 });
+        }
+
+        // Get finished games this player participated in
+        const { data: playerGames } = await supabase
+            .from('sudoku_players')
+            .select('game_id, sudoku_games!inner(status, mode, winner_id)')
+            .eq('player_id', player.id);
+
+        let wins = 0;
+        let gamesPlayed = 0;
+        let multiGames = 0;
+
+        for (const pg of playerGames || []) {
+            const game = pg.sudoku_games;
+            if (game?.status === 'finished') {
+                gamesPlayed++;
+                if (game.winner_id === player.id) wins++;
+                if (game.mode === 'multi') multiGames++;
+            }
+        }
+
+        res.json({ wins, games_played: gamesPlayed, multi_games: multiGames });
     } catch (error) {
         console.error('Error fetching stats:', error);
         res.status(500).json({ error: 'Failed to fetch stats' });

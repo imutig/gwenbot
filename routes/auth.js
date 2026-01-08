@@ -4,6 +4,7 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const { supabase } = require('../db');
 
 let sessions, TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_REDIRECT_URI, AUTHORIZED_USERS, isAdmin;
 
@@ -47,7 +48,7 @@ function createRouter(deps) {
         const savedState = req.cookies.oauth_state;
 
         if (!code || state !== savedState) {
-            return res.redirect('/admin?error=invalid_state');
+            return res.redirect('http://localhost:3000?error=invalid_state');
         }
 
         try {
@@ -66,7 +67,7 @@ function createRouter(deps) {
             const tokenData = await tokenResponse.json();
 
             if (!tokenData.access_token) {
-                return res.redirect('/admin?error=token_failed');
+                return res.redirect('http://localhost:3000?error=token_failed');
             }
 
             const userResponse = await fetch('https://api.twitch.tv/helix/users', {
@@ -80,7 +81,7 @@ function createRouter(deps) {
             const user = userData.data?.[0];
 
             if (!user) {
-                return res.redirect('/admin?error=user_failed');
+                return res.redirect('http://localhost:3000?error=user_failed');
             }
 
             const isBroadcaster = AUTHORIZED_USERS.includes(user.login.toLowerCase());
@@ -105,7 +106,7 @@ function createRouter(deps) {
                 secure: process.env.NODE_ENV === 'production'
             });
 
-            res.redirect('/admin');
+            res.redirect('http://localhost:3000/cemantig');
         } catch (error) {
             console.error('OAuth error:', error);
             res.redirect('/admin?error=auth_failed');
@@ -147,7 +148,7 @@ function createRouter(deps) {
 // Bot authorization routes
 function createBotAuthRouter(deps) {
     const router = express.Router();
-    const { TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_REDIRECT_URI, twitchClient, query } = deps;
+    const { TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_REDIRECT_URI, twitchClient } = deps;
 
     const baseUrl = TWITCH_REDIRECT_URI.replace('/auth/callback', '');
 
@@ -230,13 +231,37 @@ function createBotAuthRouter(deps) {
             const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
             const scopes = tokenData.scope || [];
 
-            await query(
-                `INSERT INTO twitch_tokens (token_type, user_id, access_token, refresh_token, expires_at, scopes)
-                 VALUES ('bot', $1, $2, $3, $4, $5)
-                 ON CONFLICT (token_type, user_id) DO UPDATE SET
-                    access_token = $2, refresh_token = $3, expires_at = $4, scopes = $5, updated_at = NOW()`,
-                [user.id, tokenData.access_token, tokenData.refresh_token, expiresAt, scopes]
-            );
+            // Check if exists
+            const { data: existing } = await supabase
+                .from('twitch_tokens')
+                .select('id')
+                .eq('token_type', 'bot')
+                .eq('user_id', user.id)
+                .single();
+
+            if (existing) {
+                await supabase
+                    .from('twitch_tokens')
+                    .update({
+                        access_token: tokenData.access_token,
+                        refresh_token: tokenData.refresh_token,
+                        expires_at: expiresAt.toISOString(),
+                        scopes: scopes,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existing.id);
+            } else {
+                await supabase
+                    .from('twitch_tokens')
+                    .insert({
+                        token_type: 'bot',
+                        user_id: user.id,
+                        access_token: tokenData.access_token,
+                        refresh_token: tokenData.refresh_token,
+                        expires_at: expiresAt.toISOString(),
+                        scopes: scopes
+                    });
+            }
 
             console.log(`✅ Bot account logged in: ${user.display_name} (${user.id})`);
 
@@ -333,13 +358,37 @@ function createBotAuthRouter(deps) {
             const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
             const scopes = tokenData.scope || [];
 
-            await query(
-                `INSERT INTO twitch_tokens (token_type, user_id, access_token, refresh_token, expires_at, scopes)
-                 VALUES ('broadcaster', $1, $2, $3, $4, $5)
-                 ON CONFLICT (token_type, user_id) DO UPDATE SET
-                    access_token = $2, refresh_token = $3, expires_at = $4, scopes = $5, updated_at = NOW()`,
-                [user.id, tokenData.access_token, tokenData.refresh_token, expiresAt, scopes]
-            );
+            // Check if exists
+            const { data: existing } = await supabase
+                .from('twitch_tokens')
+                .select('id')
+                .eq('token_type', 'broadcaster')
+                .eq('user_id', user.id)
+                .single();
+
+            if (existing) {
+                await supabase
+                    .from('twitch_tokens')
+                    .update({
+                        access_token: tokenData.access_token,
+                        refresh_token: tokenData.refresh_token,
+                        expires_at: expiresAt.toISOString(),
+                        scopes: scopes,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existing.id);
+            } else {
+                await supabase
+                    .from('twitch_tokens')
+                    .insert({
+                        token_type: 'broadcaster',
+                        user_id: user.id,
+                        access_token: tokenData.access_token,
+                        refresh_token: tokenData.refresh_token,
+                        expires_at: expiresAt.toISOString(),
+                        scopes: scopes
+                    });
+            }
 
             console.log(`✅ Broadcaster authorized bot: ${user.display_name} (${user.id})`);
 
@@ -359,18 +408,25 @@ function createBotAuthRouter(deps) {
     // Status endpoint to check authorization status
     router.get('/bot-status', async (req, res) => {
         try {
-            const botToken = await query(
-                `SELECT user_id, expires_at, scopes FROM twitch_tokens WHERE token_type = 'bot' LIMIT 1`
-            );
-            const broadcasterToken = await query(
-                `SELECT user_id, expires_at, scopes FROM twitch_tokens WHERE token_type = 'broadcaster' LIMIT 1`
-            );
+            const { data: botToken } = await supabase
+                .from('twitch_tokens')
+                .select('user_id, expires_at, scopes')
+                .eq('token_type', 'bot')
+                .limit(1)
+                .single();
+
+            const { data: broadcasterToken } = await supabase
+                .from('twitch_tokens')
+                .select('user_id, expires_at, scopes')
+                .eq('token_type', 'broadcaster')
+                .limit(1)
+                .single();
 
             res.json({
-                botAuthorized: botToken.rows.length > 0,
-                botUserId: botToken.rows[0]?.user_id || null,
-                broadcasterAuthorized: broadcasterToken.rows.length > 0,
-                broadcasterUserId: broadcasterToken.rows[0]?.user_id || null
+                botAuthorized: !!botToken,
+                botUserId: botToken?.user_id || null,
+                broadcasterAuthorized: !!broadcasterToken,
+                broadcasterUserId: broadcasterToken?.user_id || null
             });
         } catch (error) {
             console.error('Error checking bot status:', error);

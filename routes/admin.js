@@ -3,11 +3,11 @@
  */
 
 const express = require('express');
+const { supabase } = require('../db');
 
-let query, requireAdmin, getSession, getAuthorizedUsers, getSuperAdmins, updateAuthorizedUsers, getSessionStatus, startSession, stopSession;
+let requireAdmin, getSession, getAuthorizedUsers, getSuperAdmins, updateAuthorizedUsers, getSessionStatus, startSession, stopSession;
 
 function createRouter(deps) {
-    query = deps.query;
     requireAdmin = deps.requireAdmin;
     getSession = deps.getSession;
     getAuthorizedUsers = deps.getAuthorizedUsers;
@@ -36,29 +36,31 @@ function createRouter(deps) {
     // Get stream stats
     router.get('/stream-stats', requireAdmin, async (req, res) => {
         try {
-            const streams = await query(`
-                SELECT COUNT(*) as total_streams,
-                       SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 3600) as total_hours,
-                       MAX(peak_viewers) as all_time_peak,
-                       SUM(total_chatters) as total_unique_chatters
-                FROM twitch_streams
-            `);
+            // Get all streams for aggregation
+            const { data: streams } = await supabase
+                .from('twitch_streams')
+                .select('id, title, game_name, started_at, ended_at, peak_viewers, total_chatters')
+                .order('started_at', { ascending: false });
 
-            const recentStreams = await query(`
-                SELECT id, title, game_name, started_at, ended_at, peak_viewers, total_chatters
-                FROM twitch_streams
-                ORDER BY started_at DESC
-                LIMIT 5
-            `);
+            // Calculate aggregates
+            let totalHours = 0;
+            let allTimePeak = 0;
+            let totalUniqueChatters = 0;
 
-            const stats = streams.rows[0] || {};
+            for (const stream of streams || []) {
+                const start = new Date(stream.started_at);
+                const end = stream.ended_at ? new Date(stream.ended_at) : new Date();
+                totalHours += (end - start) / (1000 * 60 * 60);
+                if (stream.peak_viewers > allTimePeak) allTimePeak = stream.peak_viewers;
+                totalUniqueChatters += stream.total_chatters || 0;
+            }
 
             res.json({
-                totalStreams: parseInt(stats.total_streams) || 0,
-                totalHours: Math.round(parseFloat(stats.total_hours) || 0),
-                allTimePeak: parseInt(stats.all_time_peak) || 0,
-                totalUniqueChatters: parseInt(stats.total_unique_chatters) || 0,
-                recentStreams: recentStreams.rows
+                totalStreams: streams?.length || 0,
+                totalHours: Math.round(totalHours),
+                allTimePeak,
+                totalUniqueChatters,
+                recentStreams: (streams || []).slice(0, 5)
             });
         } catch (error) {
             console.error('Admin stream stats error:', error);
@@ -69,18 +71,18 @@ function createRouter(deps) {
     // Get records from database
     router.get('/records', requireAdmin, async (req, res) => {
         try {
-            const result = await query(`
-                SELECT lang, record_type, value, month, updated_at
-                FROM streamer_records
-                ORDER BY lang, record_type
-            `);
+            const { data: result } = await supabase
+                .from('streamer_records')
+                .select('lang, record_type, value, month, updated_at')
+                .order('lang')
+                .order('record_type');
 
             const records = {
                 fr: { alltime: null, monthly: null, monthlyPeriod: null },
                 en: { alltime: null, monthly: null, monthlyPeriod: null }
             };
 
-            for (const row of result.rows) {
+            for (const row of result || []) {
                 if (records[row.lang]) {
                     if (row.record_type === 'alltime') {
                         records[row.lang].alltime = row.value;
@@ -110,15 +112,15 @@ function createRouter(deps) {
             const newValue = parseInt(value);
             const currentMonth = new Date().toISOString().slice(0, 7);
 
-            const currentRecords = await query(`
-                SELECT record_type, value FROM streamer_records
-                WHERE lang = $1
-            `, [lang]);
+            const { data: currentRecords } = await supabase
+                .from('streamer_records')
+                .select('record_type, value')
+                .eq('lang', lang);
 
             let currentAlltime = null;
             let currentMonthly = null;
 
-            for (const row of currentRecords.rows) {
+            for (const row of currentRecords || []) {
                 if (row.record_type === 'alltime') currentAlltime = row.value;
                 if (row.record_type === 'monthly') currentMonthly = row.value;
             }
@@ -126,33 +128,45 @@ function createRouter(deps) {
             const updates = [];
 
             if (currentAlltime === null || newValue < currentAlltime) {
-                const updateResult = await query(`
-                    UPDATE streamer_records 
-                    SET value = $2, updated_at = NOW()
-                    WHERE lang = $1 AND record_type = 'alltime'
-                `, [lang, newValue]);
+                const { data: existing } = await supabase
+                    .from('streamer_records')
+                    .select('id')
+                    .eq('lang', lang)
+                    .eq('record_type', 'alltime')
+                    .single();
 
-                if (updateResult.rowCount === 0) {
-                    await query(`
-                        INSERT INTO streamer_records (lang, record_type, value, updated_at)
-                        VALUES ($1, 'alltime', $2, NOW())
-                    `, [lang, newValue]);
+                if (existing) {
+                    await supabase
+                        .from('streamer_records')
+                        .update({ value: newValue, updated_at: new Date().toISOString() })
+                        .eq('lang', lang)
+                        .eq('record_type', 'alltime');
+                } else {
+                    await supabase
+                        .from('streamer_records')
+                        .insert({ lang, record_type: 'alltime', value: newValue, updated_at: new Date().toISOString() });
                 }
                 updates.push({ type: 'alltime', old: currentAlltime, new: newValue });
             }
 
             if (currentMonthly === null || newValue < currentMonthly) {
-                const updateResult = await query(`
-                    UPDATE streamer_records 
-                    SET value = $2, month = $3, updated_at = NOW()
-                    WHERE lang = $1 AND record_type = 'monthly'
-                `, [lang, newValue, currentMonth]);
+                const { data: existing } = await supabase
+                    .from('streamer_records')
+                    .select('id')
+                    .eq('lang', lang)
+                    .eq('record_type', 'monthly')
+                    .single();
 
-                if (updateResult.rowCount === 0) {
-                    await query(`
-                        INSERT INTO streamer_records (lang, record_type, value, month, updated_at)
-                        VALUES ($1, 'monthly', $2, $3, NOW())
-                    `, [lang, newValue, currentMonth]);
+                if (existing) {
+                    await supabase
+                        .from('streamer_records')
+                        .update({ value: newValue, month: currentMonth, updated_at: new Date().toISOString() })
+                        .eq('lang', lang)
+                        .eq('record_type', 'monthly');
+                } else {
+                    await supabase
+                        .from('streamer_records')
+                        .insert({ lang, record_type: 'monthly', value: newValue, month: currentMonth, updated_at: new Date().toISOString() });
                 }
                 updates.push({ type: 'monthly', old: currentMonthly, new: newValue, month: currentMonth });
             }
@@ -196,10 +210,14 @@ function createRouter(deps) {
     // User management
     router.get('/users', requireAdmin, async (req, res) => {
         try {
-            // Get users from database for accurate data
-            const result = await query('SELECT username, is_super_admin FROM authorized_users ORDER BY is_super_admin DESC, username');
-            const users = result.rows.map(r => r.username);
-            const superAdmins = result.rows.filter(r => r.is_super_admin).map(r => r.username);
+            const { data: result } = await supabase
+                .from('authorized_users')
+                .select('username, is_super_admin')
+                .order('is_super_admin', { ascending: false })
+                .order('username');
+
+            const users = (result || []).map(r => r.username);
+            const superAdmins = (result || []).filter(r => r.is_super_admin).map(r => r.username);
 
             const session = getSession(req);
             const userLogin = session?.user?.login?.toLowerCase();
@@ -232,11 +250,10 @@ function createRouter(deps) {
 
             const lowerUsername = username.toLowerCase().trim();
 
-            // Insert into database
-            await query(
-                'INSERT INTO authorized_users (username, is_super_admin) VALUES ($1, FALSE) ON CONFLICT (username) DO NOTHING',
-                [lowerUsername]
-            );
+            // Insert into database (upsert)
+            await supabase
+                .from('authorized_users')
+                .upsert({ username: lowerUsername, is_super_admin: false }, { onConflict: 'username' });
 
             // Update memory cache
             const currentUsers = getAuthorizedUsers();
@@ -264,13 +281,22 @@ function createRouter(deps) {
             const username = req.params.username.toLowerCase();
 
             // Check if super admin in database
-            const checkResult = await query('SELECT is_super_admin FROM authorized_users WHERE username = $1', [username]);
-            if (checkResult.rows[0]?.is_super_admin) {
+            const { data: checkResult } = await supabase
+                .from('authorized_users')
+                .select('is_super_admin')
+                .eq('username', username)
+                .single();
+
+            if (checkResult?.is_super_admin) {
                 return res.status(400).json({ error: 'Impossible de supprimer un super admin' });
             }
 
             // Delete from database
-            await query('DELETE FROM authorized_users WHERE username = $1 AND is_super_admin = FALSE', [username]);
+            await supabase
+                .from('authorized_users')
+                .delete()
+                .eq('username', username)
+                .eq('is_super_admin', false);
 
             // Update memory cache
             const currentUsers = getAuthorizedUsers();
