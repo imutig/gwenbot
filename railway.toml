@@ -1,6 +1,6 @@
 [build]
 builder = "NIXPACKS"
-nixPkgs = ["git-lfs"]
+aptPkgs = ["git-lfs"]
 buildCommand = "git lfs install && git lfs pull && npm ci"
 
 [deploy]
