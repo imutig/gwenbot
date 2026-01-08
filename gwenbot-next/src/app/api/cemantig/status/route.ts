@@ -37,6 +37,53 @@ export async function GET() {
                 .limit(1)
                 .single()
 
+            // Also get the guesses from the last session so results stay visible
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const formatGuess = (guesses: any[]) => {
+                if (!guesses) return []
+                return guesses.map(g => ({
+                    id: g.id,
+                    word: g.word,
+                    similarity: g.similarity,
+                    guessed_at: g.guessed_at,
+                    username: Array.isArray(g.player) ? g.player[0]?.username : g.player?.username
+                }))
+            }
+
+            let topGuessesData: ReturnType<typeof formatGuess> = []
+            let recentGuessesData: ReturnType<typeof formatGuess> = []
+
+            if (lastSession) {
+                const { data: topGuesses } = await supabase
+                    .from('cemantig_guesses')
+                    .select(`
+                        id,
+                        word,
+                        similarity,
+                        guessed_at,
+                        player:players!cemantig_guesses_player_id_fkey(username)
+                    `)
+                    .eq('session_id', lastSession.id)
+                    .order('similarity', { ascending: false })
+                    .limit(10)
+
+                const { data: recentGuesses } = await supabase
+                    .from('cemantig_guesses')
+                    .select(`
+                        id,
+                        word,
+                        similarity,
+                        guessed_at,
+                        player:players!cemantig_guesses_player_id_fkey(username)
+                    `)
+                    .eq('session_id', lastSession.id)
+                    .order('guessed_at', { ascending: false })
+                    .limit(20)
+
+                topGuessesData = formatGuess(topGuesses || [])
+                recentGuessesData = formatGuess(recentGuesses || [])
+            }
+
             return NextResponse.json({
                 active: false,
                 lastSession: lastSession ? {
@@ -47,7 +94,9 @@ export async function GET() {
                     total_guesses: lastSession.total_guesses,
                     winner: Array.isArray(lastSession.winner)
                         ? lastSession.winner[0]?.username
-                        : (lastSession.winner as { username?: string })?.username
+                        : (lastSession.winner as { username?: string })?.username,
+                    topGuesses: topGuessesData,
+                    recentGuesses: recentGuessesData
                 } : null
             })
         }

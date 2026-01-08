@@ -76,10 +76,14 @@ export default function CemantigPage() {
                 setSession(data.session)
                 setTopGuesses(data.topGuesses || [])
                 setRecentGuesses(data.recentGuesses || [])
+                setLastSession(null)
             } else {
                 setSession(null)
                 if (data.lastSession) {
                     setLastSession(data.lastSession)
+                    // Keep showing the guesses from the finished session
+                    setTopGuesses(data.lastSession.topGuesses || [])
+                    setRecentGuesses(data.lastSession.recentGuesses || [])
                 }
             }
         } catch (error) {
@@ -225,11 +229,35 @@ export default function CemantigPage() {
                     fontSize: '2rem',
                     fontWeight: 700,
                     textAlign: 'center',
-                    marginBottom: '1.5rem',
+                    marginBottom: '1rem',
                     color: 'var(--text-primary)'
                 }}>
                     Cemantig
                 </h1>
+
+                {/* How to play instructions */}
+                <div style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '12px',
+                    padding: '1rem 1.5rem',
+                    marginBottom: '1.5rem',
+                    textAlign: 'center'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>💬 Pour deviner, tape dans le chat :</span>
+                        <code style={{
+                            background: 'var(--pink-accent)',
+                            color: 'white',
+                            padding: '0.4rem 0.75rem',
+                            borderRadius: '6px',
+                            fontWeight: 600,
+                            fontSize: '1rem'
+                        }}>
+                            !g ton_mot
+                        </code>
+                    </div>
+                </div>
 
                 {/* Admin Controls */}
                 {user?.isAdmin && (
@@ -277,8 +305,31 @@ export default function CemantigPage() {
                     </div>
                 )}
 
-                {/* Session Active */}
-                {isActive && session ? (
+                {/* Winner Banner - Show when session just ended */}
+                {!isActive && lastSession && lastSession.winner && (
+                    <div style={{
+                        background: 'linear-gradient(135deg, var(--pink-accent), var(--pink-main))',
+                        borderRadius: '16px',
+                        padding: '1.5rem',
+                        marginBottom: '1rem',
+                        textAlign: 'center',
+                        color: 'white'
+                    }}>
+                        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎉</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+                            {lastSession.winner} a trouvé le mot !
+                        </div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '0.5rem' }}>
+                            &quot;{lastSession.secret_word}&quot;
+                        </div>
+                        <div style={{ marginTop: '0.5rem', opacity: 0.9, fontSize: '0.9rem' }}>
+                            {lastSession.total_guesses} essais au total
+                        </div>
+                    </div>
+                )}
+
+                {/* Session Grids - Show for both active sessions AND finished sessions with results */}
+                {(isActive && session) || (!isActive && lastSession && topGuesses.length > 0) ? (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         {/* Top 10 */}
                         <div className="glass-card" style={{ padding: '1.5rem' }}>
@@ -335,7 +386,7 @@ export default function CemantigPage() {
                                     <circle cx="12" cy="12" r="10" />
                                     <polyline points="12 6 12 12 16 14" />
                                 </svg>
-                                Historique ({session.total_guesses || 0} total)
+                                Historique ({session?.total_guesses || lastSession?.total_guesses || 0} total)
                             </h3>
 
                             {recentGuesses.length === 0 ? (
