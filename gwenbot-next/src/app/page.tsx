@@ -5,7 +5,6 @@ import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import FancyButton from "@/components/ui/fancy-button"
-import FancyCard from "@/components/ui/fancy-card"
 
 interface TwitchStatus {
   isLive: boolean
@@ -166,47 +165,38 @@ export default function Home() {
 
       {/* Quick Links - grid-3 like original */}
       <section className="grid-3 animate-slideIn" style={{ animationDelay: '0.1s' }}>
-        <FancyCard
-          href="/cemantix"
-          icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              style={{ width: '48px', height: '48px' }}>
-              <circle cx="12" cy="12" r="10" />
-              <circle cx="12" cy="12" r="6" />
-              <circle cx="12" cy="12" r="2" />
-            </svg>
-          }
-          title="Cemantix"
-          description="Leaderboard & jeu collaboratif"
-        />
+        <Link href="/cemantix" className="glass-card" style={{ padding: '2rem', textAlign: 'center', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            style={{ width: '48px', height: '48px', marginBottom: '1rem' }}>
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="6" />
+            <circle cx="12" cy="12" r="2" />
+          </svg>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>Cemantix</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Leaderboard & jeu collaboratif</p>
+        </Link>
 
-        <FancyCard
-          href="/planning"
-          icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              style={{ width: '48px', height: '48px' }}>
-              <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-              <line x1="16" x2="16" y1="2" y2="6" />
-              <line x1="8" x2="8" y1="2" y2="6" />
-              <line x1="3" x2="21" y1="10" y2="10" />
-            </svg>
-          }
-          title="Planning"
-          description="Horaires des streams"
-        />
+        <Link href="/planning" className="glass-card" style={{ padding: '2rem', textAlign: 'center', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            style={{ width: '48px', height: '48px', marginBottom: '1rem' }}>
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+            <line x1="16" x2="16" y1="2" y2="6" />
+            <line x1="8" x2="8" y1="2" y2="6" />
+            <line x1="3" x2="21" y1="10" y2="10" />
+          </svg>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>Planning</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Horaires des streams</p>
+        </Link>
 
-        <FancyCard
-          href="/clips"
-          icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              style={{ width: '48px', height: '48px' }}>
-              <rect width="18" height="18" x="3" y="3" rx="2" />
-              <path d="m9 8 6 4-6 4Z" />
-            </svg>
-          }
-          title="Clips"
-          description="Meilleurs moments"
-        />
+        <Link href="/clips" className="glass-card" style={{ padding: '2rem', textAlign: 'center', textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            style={{ width: '48px', height: '48px', marginBottom: '1rem' }}>
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="m9 8 6 4-6 4Z" />
+          </svg>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>Clips</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Meilleurs moments</p>
+        </Link>
       </section>
     </>
   )

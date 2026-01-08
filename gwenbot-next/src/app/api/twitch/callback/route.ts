@@ -17,6 +17,15 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state')
     const tokenType = (state === 'bot' || state === 'broadcaster') ? state : 'broadcaster'
 
+    // Debug logging - show all received params
+    console.log('[Twitch Callback] ============ CALLBACK HIT ============')
+    console.log('[Twitch Callback] Full URL:', request.nextUrl.toString())
+    console.log('[Twitch Callback] Code:', code ? 'received' : 'MISSING')
+    console.log('[Twitch Callback] State:', state)
+    console.log('[Twitch Callback] TokenType:', tokenType)
+    console.log('[Twitch Callback] Error:', error)
+    console.log('[Twitch Callback] BASE_URL:', BASE_URL)
+
     // Handle OAuth errors
     if (error) {
         console.error('[Twitch Callback] OAuth error:', error, errorDescription)
@@ -94,7 +103,19 @@ export async function GET(request: NextRequest) {
 
         // Calculate expiry time
         const expiresAt = new Date(Date.now() + (expires_in * 1000)).toISOString()
-        const scopes = Array.isArray(scope) ? JSON.stringify(scope) : JSON.stringify(scope?.split(' ') || [])
+
+        // Format scopes as array for PostgreSQL ARRAY column
+        let scopesArray: string[]
+        if (Array.isArray(scope)) {
+            scopesArray = scope
+        } else if (typeof scope === 'string') {
+            scopesArray = scope.split(' ')
+        } else {
+            scopesArray = []
+        }
+        const scopes = scopesArray
+
+        console.log('[Twitch Callback] Scopes array:', scopesArray)
 
         // Store or update token in database
         const supabase = createClient(supabaseUrl, supabaseServiceKey)

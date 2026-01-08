@@ -173,17 +173,17 @@ export async function GET() {
         const isLive = !!stream
 
         // Try to get follower count with user token (requires moderator:read:followers)
-        // Try broadcaster token first, then bot token as fallback
+        // Try bot token first (has moderator scope), then broadcaster as fallback
         let followersCount = 416 // Fallback
 
-        // Try broadcaster token first
-        let userToken = await getUserToken('broadcaster')
-        let tokenSource = 'broadcaster'
+        // Try bot token first (moderator on channel with moderator:read:followers scope)
+        let userToken = await getUserToken('bot')
+        let tokenSource = 'bot'
 
-        // If no broadcaster token or it fails, try bot token (moderator on channel)
+        // If no bot token, try broadcaster token as fallback
         if (!userToken) {
-            userToken = await getUserToken('bot')
-            tokenSource = 'bot'
+            userToken = await getUserToken('broadcaster')
+            tokenSource = 'broadcaster'
         }
 
         if (userToken) {
