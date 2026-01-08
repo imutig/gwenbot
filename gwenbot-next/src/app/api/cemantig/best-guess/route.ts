@@ -46,11 +46,17 @@ export async function GET() {
             })
         }
 
+        // Extract username from player relation
+        const player = bestGuess.player as { username: string } | { username: string }[] | null
+        const username = Array.isArray(player)
+            ? player[0]?.username
+            : player?.username
+
         return NextResponse.json({
             bestGuess: {
                 word: bestGuess.word,
                 similarity: bestGuess.similarity,
-                username: (bestGuess.player as { username: string })?.username || 'Unknown'
+                username: username || 'Unknown'
             },
             sessionActive: true
         })
