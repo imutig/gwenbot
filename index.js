@@ -489,7 +489,9 @@ async function handleMessage(msg) {
                 }
 
                 // Get secret word from a separate endpoint (bot needs to know it)
-                const secretRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/secret`);
+                const secretRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/secret`, {
+                    headers: { 'x-bot-secret': process.env.BOT_SECRET || '' }
+                });
                 const secretData = await secretRes.json();
 
                 if (!secretData.secret_word) {
@@ -503,7 +505,10 @@ async function handleMessage(msg) {
                 // Send to API to save
                 const guessRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/guess`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-bot-secret': process.env.BOT_SECRET || ''
+                    },
                     body: JSON.stringify({ username, word, similarity })
                 });
                 const guessData = await guessRes.json();
