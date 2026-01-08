@@ -71,12 +71,34 @@ export default function SudokuPage() {
     const [historyIndex, setHistoryIndex] = useState(-1)
     const gridRef = useRef<HTMLDivElement>(null)
 
-    // Mock user for demo
-    const [user] = useState({ username: 'viewer123', isStreamer: false })
+    // User state - loaded from session
+    const [user, setUser] = useState({ username: '', isAuthorized: false })
 
     // Opponent progress for 1v1 visualization
     const [opponentProgress, setOpponentProgress] = useState<string>('')
     const [opponentUsername, setOpponentUsername] = useState<string>('')
+
+    // Load user from session on mount
+    useEffect(() => {
+        const loadUser = async () => {
+            try {
+                const res = await fetch('/api/auth/session')
+                const data = await res.json()
+                if (data.authenticated && data.user) {
+                    // Check if user is authorized
+                    const authRes = await fetch(`/api/admin/check?username=${encodeURIComponent(data.user.display_name)}`)
+                    const authData = await authRes.json()
+                    setUser({
+                        username: data.user.display_name,
+                        isAuthorized: authData.isAuthorized || false
+                    })
+                }
+            } catch (error) {
+                console.error('Error loading user:', error)
+            }
+        }
+        loadUser()
+    }, [])
 
     // Timer effect
     useEffect(() => {
@@ -265,8 +287,8 @@ export default function SudokuPage() {
     }
 
     const handleCreate1v1 = async () => {
-        if (!user.isStreamer) {
-            setMessage('Seul le streamer peut créer une session 1v1')
+        if (!user.isAuthorized) {
+            setMessage('Seuls les utilisateurs autorisés peuvent créer une session 1v1')
             return
         }
 
@@ -743,13 +765,13 @@ export default function SudokuPage() {
                         </div>
                     ) : (
                         <div style={{ textAlign: 'center' }}>
-                            {user.isStreamer ? (
+                            {user.isAuthorized ? (
                                 <FancyButton size="sm" onClick={handleCreate1v1} disabled={loading}>
                                     {loading ? 'Chargement...' : 'Créer une session 1v1'}
                                 </FancyButton>
                             ) : (
                                 <p style={{ color: 'var(--text-muted)' }}>
-                                    Attends que le streamer lance une session 1v1 !
+                                    Seuls les utilisateurs autorisés peuvent créer une session 1v1
                                 </p>
                             )}
                         </div>
@@ -790,7 +812,7 @@ export default function SudokuPage() {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'center' }}>
-                        {user.isStreamer ? (
+                        {user.isAuthorized ? (
                             <FancyButton size="sm" onClick={handlePickRandom} disabled={loading || !gameState.queue?.length}>
                                 Choisir au hasard
                             </FancyButton>
