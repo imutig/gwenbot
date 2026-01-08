@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     const code = searchParams.get('code')
     const error = searchParams.get('error')
     const errorDescription = searchParams.get('error_description')
+    const tokenType = searchParams.get('type') || 'broadcaster' // 'bot' or 'broadcaster'
 
     // Handle OAuth errors
     if (error) {
@@ -45,6 +46,9 @@ export async function GET(request: NextRequest) {
 
     try {
         // Exchange code for access token
+        // Note: redirect_uri must match exactly what was used in the authorization request
+        const redirectUri = `${BASE_URL}/api/twitch/callback?type=${tokenType}`
+
         const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -53,7 +57,7 @@ export async function GET(request: NextRequest) {
                 client_secret: TWITCH_CLIENT_SECRET,
                 code: code,
                 grant_type: 'authorization_code',
-                redirect_uri: `${BASE_URL}/api/twitch/callback`
+                redirect_uri: redirectUri
             })
         })
 
@@ -86,7 +90,7 @@ export async function GET(request: NextRequest) {
             )
         }
 
-        console.log('[Twitch Callback] Authorized user:', user.login, user.id)
+        console.log(`[Twitch Callback] Authorized ${tokenType}:`, user.login, user.id)
 
         // Calculate expiry time
         const expiresAt = new Date(Date.now() + (expires_in * 1000)).toISOString()
@@ -95,12 +99,12 @@ export async function GET(request: NextRequest) {
         // Store or update token in database
         const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-        // Check if token already exists for this user
+        // Check if token already exists for this user and type
         const { data: existingToken } = await supabase
             .from('twitch_tokens')
             .select('id')
             .eq('user_id', user.id)
-            .eq('token_type', 'broadcaster')
+            .eq('token_type', tokenType)
             .single()
 
         if (existingToken) {
@@ -129,7 +133,7 @@ export async function GET(request: NextRequest) {
             const { error: insertError } = await supabase
                 .from('twitch_tokens')
                 .insert({
-                    token_type: 'broadcaster',
+                    token_type: tokenType,
                     user_id: user.id,
                     access_token,
                     refresh_token,

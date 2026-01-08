@@ -29,8 +29,8 @@ interface TwitchToken {
     updated_at: string
 }
 
-// Get broadcaster token from database and refresh if needed
-async function getBroadcasterToken(): Promise<string | null> {
+// Get user token from database and refresh if needed
+async function getUserToken(tokenType: 'broadcaster' | 'bot'): Promise<string | null> {
     if (!supabaseUrl || !supabaseServiceKey) {
         console.log('[Twitch API] No Supabase credentials configured')
         return null
@@ -39,15 +39,15 @@ async function getBroadcasterToken(): Promise<string | null> {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     try {
-        // Fetch broadcaster token from database
+        // Fetch token from database
         const { data: tokenData, error } = await supabase
             .from('twitch_tokens')
             .select('*')
-            .eq('token_type', 'broadcaster')
+            .eq('token_type', tokenType)
             .single()
 
         if (error || !tokenData) {
-            console.log('[Twitch API] No broadcaster token found in database:', error?.message)
+            console.log(`[Twitch API] No ${tokenType} token found in database:`, error?.message)
             return null
         }
 
@@ -59,7 +59,7 @@ async function getBroadcasterToken(): Promise<string | null> {
         const fiveMinutes = 5 * 60 * 1000
 
         if (expiresAt - now < fiveMinutes) {
-            console.log('[Twitch API] Token expired or expiring soon, refreshing...')
+            console.log(`[Twitch API] ${tokenType} token expired or expiring soon, refreshing...`)
 
             // Refresh the token
             const refreshResponse = await fetch('https://id.twitch.tv/oauth2/token', {
@@ -89,17 +89,17 @@ async function getBroadcasterToken(): Promise<string | null> {
                     })
                     .eq('id', token.id)
 
-                console.log('[Twitch API] Token refreshed successfully')
+                console.log(`[Twitch API] ${tokenType} token refreshed successfully`)
                 return refreshData.access_token
             } else {
-                console.error('[Twitch API] Failed to refresh token:', refreshData)
+                console.error(`[Twitch API] Failed to refresh ${tokenType} token:`, refreshData)
                 return null
             }
         }
 
         return token.access_token
     } catch (error) {
-        console.error('[Twitch API] Error getting broadcaster token:', error)
+        console.error(`[Twitch API] Error getting ${tokenType} token:`, error)
         return null
     }
 }
@@ -172,35 +172,45 @@ export async function GET() {
         const stream = streamData.data?.[0] as TwitchStream | undefined
         const isLive = !!stream
 
-        // Try to get follower count with broadcaster token (requires moderator:read:followers)
+        // Try to get follower count with user token (requires moderator:read:followers)
+        // Try broadcaster token first, then bot token as fallback
         let followersCount = 416 // Fallback
 
-        const broadcasterToken = await getBroadcasterToken()
-        if (broadcasterToken) {
+        // Try broadcaster token first
+        let userToken = await getUserToken('broadcaster')
+        let tokenSource = 'broadcaster'
+
+        // If no broadcaster token or it fails, try bot token (moderator on channel)
+        if (!userToken) {
+            userToken = await getUserToken('bot')
+            tokenSource = 'bot'
+        }
+
+        if (userToken) {
             try {
-                const broadcasterHeaders = {
+                const userHeaders = {
                     'Client-ID': TWITCH_CLIENT_ID,
-                    'Authorization': `Bearer ${broadcasterToken}`
+                    'Authorization': `Bearer ${userToken}`
                 }
 
                 const followersRes = await fetch(
                     `https://api.twitch.tv/helix/channels/followers?broadcaster_id=${TWITCH_BROADCASTER_ID}`,
-                    { headers: broadcasterHeaders }
+                    { headers: userHeaders }
                 )
                 const followersData = await followersRes.json()
 
-                console.log('[Twitch API] Followers response:', JSON.stringify(followersData))
+                console.log(`[Twitch API] Followers response (${tokenSource}):`, JSON.stringify(followersData))
 
                 if (followersData.total !== undefined) {
                     followersCount = followersData.total
                 } else if (followersData.error) {
-                    console.log('[Twitch API] Followers error (scope missing?):', followersData.message)
+                    console.log(`[Twitch API] Followers error (${tokenSource}, scope missing?):`, followersData.message)
                 }
             } catch (followersError) {
                 console.error('[Twitch API] Error fetching followers:', followersError)
             }
         } else {
-            console.log('[Twitch API] No broadcaster token available, using fallback followers')
+            console.log('[Twitch API] No user token available, using fallback followers')
         }
 
         return NextResponse.json({

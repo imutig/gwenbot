@@ -114,20 +114,42 @@ export default function MaintenancePage() {
                     </div>
 
                     <a
-                        href={`https://id.twitch.tv/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || 'YOUR_CLIENT_ID'}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000')}/api/twitch/callback&response_type=code&scope=${encodeURIComponent('bits:read channel:bot channel:manage:broadcast channel:manage:polls channel:manage:predictions channel:manage:redemptions channel:read:hype_train channel:read:polls channel:read:predictions channel:read:redemptions channel:read:subscriptions chat:edit chat:read moderator:read:chatters moderator:read:followers user:read:email whispers:read whispers:edit')}`}
+                        href={`https://id.twitch.tv/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || 'YOUR_CLIENT_ID'}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000')}/api/twitch/callback?type=broadcaster&response_type=code&scope=${encodeURIComponent('bits:read channel:bot channel:manage:broadcast channel:manage:polls channel:manage:predictions channel:manage:redemptions channel:read:hype_train channel:read:polls channel:read:predictions channel:read:redemptions channel:read:subscriptions chat:edit chat:read moderator:read:chatters moderator:read:followers user:read:email')}`}
                         className="btn btn-secondary"
                         style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.5rem',
-                            fontSize: '0.85rem',
-                            padding: '0.6rem 1rem'
+                            fontSize: '0.8rem',
+                            padding: '0.5rem 0.75rem',
+                            marginBottom: '0.5rem'
                         }}
                     >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                         </svg>
-                        Réautoriser le bot (Streamer)
+                        Autoriser (Compte Streamer)
+                    </a>
+
+                    <a
+                        href={`https://id.twitch.tv/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || 'YOUR_CLIENT_ID'}&redirect_uri=${encodeURIComponent(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000')}/api/twitch/callback?type=bot&response_type=code&scope=${encodeURIComponent('clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:chatters moderator:read:followers user:bot user:read:chat user:write:chat')}`}
+                        className="btn btn-secondary"
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            fontSize: '0.8rem',
+                            padding: '0.5rem 0.75rem'
+                        }}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect width="18" height="10" x="3" y="11" rx="2" />
+                            <circle cx="12" cy="5" r="2" />
+                            <path d="M12 7v4" />
+                            <line x1="8" x2="8" y1="16" y2="16" />
+                            <line x1="16" x2="16" y1="16" y2="16" />
+                        </svg>
+                        Autoriser (Compte Bot)
                     </a>
 
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1rem', opacity: 0.7 }}>
