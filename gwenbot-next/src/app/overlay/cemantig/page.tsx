@@ -12,6 +12,7 @@ interface BestGuess {
     word: string
     similarity: number
     username: string
+    id: string // Unique ID for queue management
 }
 
 // Temperature conversion (from cemantig/page.tsx)
@@ -50,19 +51,65 @@ const formatTemperature = (similarity: number): string => {
 }
 
 export default function CemantigOverlayPage() {
-    const [bestGuess, setBestGuess] = useState<BestGuess | null>(null)
-    const [showNotification, setShowNotification] = useState(false)
-    const [isWinner, setIsWinner] = useState(false)
+    const [notificationQueue, setNotificationQueue] = useState<BestGuess[]>([])
+    const [currentNotification, setCurrentNotification] = useState<BestGuess | null>(null)
     const [isHiding, setIsHiding] = useState(false)
     const bestSimilarityRef = useRef<number>(0)
+    const isShowingRef = useRef<boolean>(false)
 
-    // Fetch current best guess on mount
+    // Process queue - show next notification when current one finishes
+    const processQueue = useCallback(() => {
+        if (isShowingRef.current) return
+
+        setNotificationQueue(prev => {
+            if (prev.length === 0) return prev
+
+            const [next, ...rest] = prev
+            isShowingRef.current = true
+            setCurrentNotification(next)
+            setIsHiding(false)
+
+            // Hide after 3 seconds
+            setTimeout(() => {
+                setIsHiding(true)
+                setTimeout(() => {
+                    setCurrentNotification(null)
+                    isShowingRef.current = false
+                    // Process next in queue
+                    if (rest.length > 0) {
+                        setTimeout(() => processQueue(), 300)
+                    }
+                }, 400)
+            }, 3000)
+
+            return rest
+        })
+    }, [])
+
+    // Watch queue changes
+    useEffect(() => {
+        if (notificationQueue.length > 0 && !isShowingRef.current) {
+            processQueue()
+        }
+    }, [notificationQueue, processQueue])
+
+    // Fetch current best guess on mount and periodically to detect session changes
     const fetchBestGuess = useCallback(async () => {
         try {
             const res = await fetch('/api/cemantig/best-guess')
             const data = await res.json()
-            if (data.bestGuess) {
+
+            if (!data.sessionActive) {
+                // No active session - reset to 0
+                console.log('[Overlay] No active session, resetting best to 0')
+                bestSimilarityRef.current = 0
+            } else if (data.bestGuess) {
                 bestSimilarityRef.current = data.bestGuess.similarity
+                console.log('[Overlay] Session active, best guess:', data.bestGuess.similarity)
+            } else {
+                // Session active but no guesses yet - reset to 0
+                console.log('[Overlay] Session active but no guesses, resetting best to 0')
+                bestSimilarityRef.current = 0
             }
         } catch (error) {
             console.error('[Overlay] Error fetching best guess:', error)
@@ -71,18 +118,20 @@ export default function CemantigOverlayPage() {
 
     useEffect(() => {
         fetchBestGuess()
+
+        // Poll every 10 seconds to detect session changes
+        const interval = setInterval(fetchBestGuess, 10000)
+        return () => clearInterval(interval)
     }, [fetchBestGuess])
 
     // Force transparent background for OBS Browser Source
     useEffect(() => {
-        // Force transparent background on body and html
         document.body.style.background = 'transparent'
         document.body.style.backgroundColor = 'transparent'
         document.documentElement.style.background = 'transparent'
         document.documentElement.style.backgroundColor = 'transparent'
 
         return () => {
-            // Cleanup: restore original styles
             document.body.style.background = ''
             document.body.style.backgroundColor = ''
             document.documentElement.style.background = ''
@@ -104,34 +153,23 @@ export default function CemantigOverlayPage() {
             .on('broadcast', { event: 'new_guess' }, (payload) => {
                 console.log('[Overlay] New guess received:', payload)
 
-                const newGuess = payload.payload as BestGuess
+                const guess = payload.payload as Omit<BestGuess, 'id'>
+
+                console.log('[Overlay] Current best:', bestSimilarityRef.current, 'New guess:', guess.similarity)
 
                 // Check if this is a new best guess
-                if (newGuess.similarity > bestSimilarityRef.current) {
-                    console.log('[Overlay] NEW BEST GUESS!', newGuess)
+                if (guess.similarity > bestSimilarityRef.current) {
+                    console.log('[Overlay] NEW BEST GUESS!', guess)
 
-                    bestSimilarityRef.current = newGuess.similarity
+                    bestSimilarityRef.current = guess.similarity
 
-                    // Check if winner
-                    if (newGuess.similarity === 1000) {
-                        setIsWinner(true)
-                    } else {
-                        setIsWinner(false)
+                    // Add to queue with unique ID
+                    const newNotification: BestGuess = {
+                        ...guess,
+                        id: `${Date.now()}-${Math.random()}`
                     }
 
-                    setBestGuess(newGuess)
-                    setIsHiding(false)
-                    setShowNotification(true)
-
-                    // Start hiding animation after 4 seconds
-                    setTimeout(() => {
-                        setIsHiding(true)
-                        // Remove from DOM after animation
-                        setTimeout(() => {
-                            setShowNotification(false)
-                            setIsHiding(false)
-                        }, 500)
-                    }, 4000)
+                    setNotificationQueue(prev => [...prev, newNotification])
                 }
             })
             .subscribe((status) => {
@@ -144,44 +182,31 @@ export default function CemantigOverlayPage() {
         }
     }, [])
 
+    const isWinner = currentNotification?.similarity === 1000
+
     return (
         <>
             <style>{`
                 @keyframes slideIn {
                     0% {
-                        transform: translateX(100%) scale(0.8);
+                        transform: translateX(100%);
                         opacity: 0;
                     }
                     100% {
-                        transform: translateX(0) scale(1);
+                        transform: translateX(0);
                         opacity: 1;
                     }
                 }
                 
                 @keyframes slideOut {
                     0% {
-                        transform: translateX(0) scale(1);
+                        transform: translateX(0);
                         opacity: 1;
                     }
                     100% {
-                        transform: translateX(100%) scale(0.8);
+                        transform: translateX(100%);
                         opacity: 0;
                     }
-                }
-                
-                @keyframes pulse {
-                    0%, 100% { transform: scale(1); }
-                    50% { transform: scale(1.05); }
-                }
-                
-                @keyframes glow {
-                    0%, 100% { box-shadow: 0 0 20px rgba(236, 72, 153, 0.5), 0 0 40px rgba(236, 72, 153, 0.3); }
-                    50% { box-shadow: 0 0 30px rgba(236, 72, 153, 0.8), 0 0 60px rgba(236, 72, 153, 0.5); }
-                }
-                
-                @keyframes winnerPulse {
-                    0%, 100% { transform: scale(1); box-shadow: 0 0 30px rgba(251, 191, 36, 0.6); }
-                    50% { transform: scale(1.02); box-shadow: 0 0 50px rgba(251, 191, 36, 0.9); }
                 }
                 
                 .notification-container {
@@ -192,112 +217,118 @@ export default function CemantigOverlayPage() {
                 }
                 
                 .notification {
-                    background: linear-gradient(135deg, rgba(236, 72, 153, 0.95), rgba(168, 85, 247, 0.95));
-                    backdrop-filter: blur(10px);
+                    background: rgba(255, 240, 243, 0.98);
+                    backdrop-filter: blur(16px);
                     border-radius: 20px;
-                    padding: 20px 28px;
-                    min-width: 320px;
-                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 20px rgba(236, 72, 153, 0.4);
-                    border: 2px solid rgba(255, 255, 255, 0.3);
-                    animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, glow 2s ease-in-out infinite;
+                    padding: 24px 32px;
+                    min-width: 380px;
+                    box-shadow: 0 12px 48px rgba(139, 69, 88, 0.2);
+                    border: 2px solid rgba(255, 182, 193, 0.6);
+                    animation: slideIn 0.4s ease-out forwards;
                 }
                 
                 .notification.hiding {
-                    animation: slideOut 0.5s ease-in forwards;
+                    animation: slideOut 0.4s ease-in forwards;
                 }
                 
                 .notification.winner {
-                    background: linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.95));
-                    animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, winnerPulse 0.5s ease-in-out infinite;
-                }
-                
-                .notification.winner.hiding {
-                    animation: slideOut 0.5s ease-in forwards;
+                    background: rgba(255, 250, 230, 0.98);
+                    border: 2px solid rgba(251, 191, 36, 0.6);
                 }
                 
                 .notification-header {
                     display: flex;
                     align-items: center;
-                    gap: 10px;
-                    margin-bottom: 12px;
+                    gap: 12px;
+                    margin-bottom: 14px;
                 }
                 
                 .notification-badge {
-                    background: rgba(255, 255, 255, 0.25);
+                    background: rgba(255, 133, 192, 0.25);
                     padding: 6px 14px;
-                    border-radius: 20px;
-                    font-size: 12px;
-                    font-weight: 700;
+                    border-radius: 14px;
+                    font-size: 14px;
+                    font-weight: 600;
                     text-transform: uppercase;
-                    letter-spacing: 1px;
-                    color: white;
+                    letter-spacing: 0.5px;
+                    color: #be185d;
+                }
+                
+                .notification.winner .notification-badge {
+                    background: rgba(251, 191, 36, 0.25);
+                    color: #b45309;
                 }
                 
                 .notification-emoji {
                     font-size: 28px;
-                    animation: pulse 1s ease-in-out infinite;
                 }
                 
                 .notification-content {
-                    color: white;
+                    color: #8B4558;
                 }
                 
                 .notification-username {
-                    font-size: 14px;
+                    font-size: 16px;
                     font-weight: 500;
-                    opacity: 0.9;
+                    opacity: 0.7;
                     margin-bottom: 4px;
                 }
                 
                 .notification-word {
-                    font-size: 28px;
-                    font-weight: 800;
+                    font-size: 32px;
+                    font-weight: 700;
                     text-transform: uppercase;
                     letter-spacing: 2px;
-                    margin-bottom: 8px;
-                    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+                    margin-bottom: 10px;
+                    color: #8B4558;
                 }
                 
                 .notification-score {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
+                    gap: 12px;
                     font-size: 18px;
-                    font-weight: 700;
+                    font-weight: 600;
                     font-family: 'Courier New', monospace;
                 }
                 
                 .temperature {
-                    padding: 4px 12px;
+                    padding: 5px 12px;
                     border-radius: 8px;
-                    background: rgba(255, 255, 255, 0.2);
+                    background: rgba(255, 133, 192, 0.15);
+                }
+                
+                .similarity-value {
+                    opacity: 0.5;
+                    font-size: 16px;
+                    color: #8B4558;
                 }
             `}</style>
 
             <div className="notification-container">
-                {showNotification && bestGuess && (
+                {currentNotification && (
                     <div className={`notification ${isWinner ? 'winner' : ''} ${isHiding ? 'hiding' : ''}`}>
                         <div className="notification-header">
                             <span className="notification-badge">
-                                {isWinner ? '🏆 TROUVÉ !' : '🔥 Nouveau Record'}
+                                {isWinner ? '🏆 Trouvé !' : '📈 Nouveau record'}
                             </span>
                             <span className="notification-emoji">
-                                {getSimilarityEmoji(bestGuess.similarity)}
+                                {getSimilarityEmoji(currentNotification.similarity)}
                             </span>
                         </div>
                         <div className="notification-content">
                             <div className="notification-username">
-                                {bestGuess.username}
+                                {currentNotification.username}
                             </div>
                             <div className="notification-word">
-                                {bestGuess.word}
+                                {currentNotification.word}
                             </div>
                             <div className="notification-score">
-                                <span className="temperature" style={{ color: getSimilarityColor(bestGuess.similarity) }}>
-                                    {formatTemperature(bestGuess.similarity)}
+                                <span className="temperature" style={{ color: getSimilarityColor(currentNotification.similarity) }}>
+                                    {formatTemperature(currentNotification.similarity)}
                                 </span>
-                                <span style={{ opacity: 0.7 }}>
-                                    ({bestGuess.similarity}/1000)
+                                <span className="similarity-value">
+                                    {currentNotification.similarity}/1000
                                 </span>
                             </div>
                         </div>

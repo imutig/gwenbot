@@ -87,10 +87,21 @@ export async function POST(request: Request) {
         if (guessError) throw guessError
 
         // Broadcast the new guess for real-time updates
-        await supabase.channel('cemantig-broadcast').send({
-            type: 'broadcast',
-            event: 'new_guess',
-            payload: { word: word.toLowerCase(), similarity, username }
+        // Must subscribe to channel before sending
+        const channel = supabase.channel('cemantig-broadcast')
+        await new Promise<void>((resolve) => {
+            channel.subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    channel.send({
+                        type: 'broadcast',
+                        event: 'new_guess',
+                        payload: { word: word.toLowerCase(), similarity, username }
+                    }).then(() => {
+                        supabase.removeChannel(channel)
+                        resolve()
+                    })
+                }
+            })
         })
 
         // Update total guesses count (simple increment)

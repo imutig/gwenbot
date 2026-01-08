@@ -411,7 +411,7 @@ export default function CemantigPage() {
                                 {recentGuesses.length === 0 ? (
                                     <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Aucun guess</p>
                                 ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '400px', overflowY: 'auto' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '400px', overflowY: 'auto', overflowX: 'hidden' }}>
                                         {recentGuesses.map((guess) => (
                                             <div key={guess.id} style={{
                                                 display: 'flex',
@@ -420,13 +420,22 @@ export default function CemantigPage() {
                                                 padding: '0.5rem 0.75rem',
                                                 background: 'var(--bg-card)',
                                                 borderRadius: '8px',
-                                                fontSize: '0.9rem'
+                                                fontSize: '0.9rem',
+                                                minWidth: 0
                                             }}>
-                                                <span style={{ color: 'var(--pink-accent)', fontWeight: 500 }}>
+                                                <span style={{
+                                                    color: 'var(--pink-accent)',
+                                                    fontWeight: 500,
+                                                    maxWidth: '100px',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                    flexShrink: 0
+                                                }}>
                                                     {guess.username}
                                                 </span>
-                                                <span style={{ flex: 1 }}>{guess.word}</span>
-                                                <span style={{ fontSize: '1rem' }}>
+                                                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{guess.word}</span>
+                                                <span style={{ fontSize: '1rem', flexShrink: 0 }}>
                                                     {getSimilarityEmoji(guess.similarity)}
                                                 </span>
                                                 <span style={{
@@ -434,7 +443,8 @@ export default function CemantigPage() {
                                                     color: getSimilarityColor(guess.similarity),
                                                     fontFamily: 'monospace',
                                                     minWidth: '70px',
-                                                    textAlign: 'right'
+                                                    textAlign: 'right',
+                                                    flexShrink: 0
                                                 }}>
                                                     {formatTemperature(guess.similarity)}
                                                 </span>

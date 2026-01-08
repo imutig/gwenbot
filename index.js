@@ -855,6 +855,9 @@ async function handleMessage(msg) {
         gameSession.found = true;
         gameSession.winner = username;
         gameSession.winningWord = word;
+
+        // Auto-end the session and save all player points to player_stats
+        await endGameSession(msg.channel);
     }
 }
 
