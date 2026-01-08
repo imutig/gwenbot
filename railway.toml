@@ -1,5 +1,7 @@
 [build]
 builder = "NIXPACKS"
+nixPkgs = ["git-lfs"]
+buildCommand = "git lfs install && git lfs pull && npm ci"
 
 [deploy]
 startCommand = "node index.js"
