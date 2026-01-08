@@ -48,9 +48,9 @@ export default async function AdminPage() {
         <div className="animate-slideIn">
             <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '32px', height: '32px' }}>
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <line x1="4" x2="20" y1="21" y2="21" /><line x1="4" x2="20" y1="14" y2="14" /><line x1="4" x2="20" y1="7" y2="7" /><circle cx="12" cy="14" r="2" /><circle cx="12" cy="7" r="2" /><circle cx="12" cy="21" r="2" />
                 </svg>
-                Administration
+                Gestion
             </h1>
             <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
                 Connecté en tant que <strong>{user.user_metadata?.user_name}</strong>
@@ -72,9 +72,9 @@ export default async function AdminPage() {
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
                         Gérer les admins et modérateurs
                     </p>
-                    <button className="btn btn-primary" style={{ width: '100%' }}>
+                    <a href="/admin/users" className="btn btn-primary" style={{ width: '100%', textAlign: 'center', textDecoration: 'none', display: 'block' }}>
                         Gérer
-                    </button>
+                    </a>
                 </div>
 
                 {/* Cemantix Records */}
@@ -93,9 +93,9 @@ export default async function AdminPage() {
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
                         Modifier les records FR/EN
                     </p>
-                    <button className="btn btn-secondary" style={{ width: '100%' }}>
+                    <a href="/admin/records" className="btn btn-secondary" style={{ width: '100%', textAlign: 'center', textDecoration: 'none', display: 'block' }}>
                         Modifier
-                    </button>
+                    </a>
                 </div>
 
                 {/* Leaderboard */}
@@ -106,14 +106,14 @@ export default async function AdminPage() {
                             <line x1="12" x2="12" y1="20" y2="4" />
                             <line x1="6" x2="6" y1="20" y2="14" />
                         </svg>
-                        Leaderboard
+                        Gestion des classements
                     </h3>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-                        Réinitialiser ou modifier
+                        Réinitialiser Sudoku ou Cemantix
                     </p>
-                    <button className="btn btn-secondary" style={{ width: '100%' }}>
+                    <a href="/admin/leaderboard" className="btn btn-secondary" style={{ width: '100%', textAlign: 'center', textDecoration: 'none', display: 'block' }}>
                         Gérer
-                    </button>
+                    </a>
                 </div>
 
                 {/* Bot Status */}
@@ -126,7 +126,7 @@ export default async function AdminPage() {
                             <line x1="8" x2="8" y1="16" y2="16" />
                             <line x1="16" x2="16" y1="16" y2="16" />
                         </svg>
-                        Bot Status
+                        Statut du Bot
                     </h3>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
                         Statut et commandes du bot

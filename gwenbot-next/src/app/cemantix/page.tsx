@@ -62,8 +62,8 @@ const HistoryIcon = () => (
 )
 
 interface Records {
-    fr: { alltime: number | null; monthly: number | null }
-    en: { alltime: number | null; monthly: number | null }
+    fr: { alltime: { score: number, date: string } | null; monthly: { score: number, date: string } | null }
+    en: { alltime: { score: number, date: string } | null; monthly: { score: number, date: string } | null }
 }
 
 interface LeaderboardEntry {
@@ -101,7 +101,6 @@ export default function CemantixPage() {
         const checkAdmin = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
-                // Try different possible username fields
                 const username = (
                     user.user_metadata?.user_name ||
                     user.user_metadata?.preferred_username ||
@@ -109,13 +108,10 @@ export default function CemantixPage() {
                     user.email?.split('@')[0]
                 )?.toLowerCase()
 
-                console.log('[Cemantix] Checking admin for:', username, user.user_metadata)
-
                 if (username) {
                     setCurrentUser(username)
                     const res = await fetch(`/api/auth/check-admin?username=${username}`)
                     const data = await res.json()
-                    console.log('[Cemantix] Admin check result:', data)
                     setIsAdmin(data.isAdmin)
                 }
             }
@@ -205,8 +201,8 @@ export default function CemantixPage() {
         }
     }
 
-    const formatRecord = (value: number | null) => {
-        return value !== null ? value.toString() : '-'
+    const formatRecord = (record: { score: number, date: string } | null) => {
+        return record?.score ? record.score.toString() : '-'
     }
 
     return (

@@ -26,9 +26,14 @@ export async function GET() {
 
         if (presences) {
             for (const p of presences) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const players = p.players as any
                 const username = players?.username ?? (Array.isArray(players) ? players[0]?.username : 'Unknown')
+
+                // Filter out bots
+                if (['xsgwen', 'gwenbot_', 'streamelements'].includes(username.toLowerCase())) {
+                    continue
+                }
+
                 // Use watch_time_seconds from DB, convert to minutes
                 const minutes = Math.floor((p.watch_time_seconds || 0) / 60)
 

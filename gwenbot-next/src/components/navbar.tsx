@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import FancyButton from '@/components/ui/fancy-button'
 
+import { getTwitchUsername } from '@/lib/auth-utils'
+
 // Game links for dropdown
 const gameLinks = [
     { href: '/cemantix', label: 'Cemantix', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></svg> },
@@ -24,8 +26,7 @@ const navLinks = [
 ]
 
 const adminLinks = [
-    { href: '/polls', label: 'Sondages', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}><line x1="18" x2="18" y1="20" y2="10" /><line x1="12" x2="12" y1="20" y2="4" /><line x1="6" x2="6" y1="20" y2="14" /></svg> },
-    { href: '/admin', label: 'Admin', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg> },
+    { href: '/admin', label: 'Gestion', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}><line x1="4" x2="20" y1="21" y2="21" /><line x1="4" x2="20" y1="14" y2="14" /><line x1="4" x2="20" y1="7" y2="7" /><circle cx="12" cy="14" r="2" /><circle cx="12" cy="7" r="2" /><circle cx="12" cy="21" r="2" /></svg> },
 ]
 
 // Chevron icon for dropdown
@@ -68,6 +69,8 @@ export default function Navbar() {
     // Check if current page is a game page
     const isGamePage = gameLinks.some(link => pathname === link.href)
 
+    // ... existing code ...
+
     useEffect(() => {
         if (!supabase) return
 
@@ -76,10 +79,11 @@ export default function Navbar() {
             setUser(user)
 
             if (user) {
+                const username = getTwitchUsername(user)
                 const { data } = await supabase
                     .from('authorized_users')
                     .select('username')
-                    .eq('username', user.user_metadata?.user_name?.toLowerCase())
+                    .eq('username', username)
                     .single()
                 setIsAdmin(!!data)
             }

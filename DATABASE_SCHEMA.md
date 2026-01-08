@@ -22,12 +22,37 @@ Paste your schema output here in this format:
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
 CREATE TABLE public.authorized_users (
   id integer NOT NULL DEFAULT nextval('authorized_users_id_seq'::regclass),
   username character varying NOT NULL UNIQUE,
   is_super_admin boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT authorized_users_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.cemantig_guesses (
+  id integer NOT NULL DEFAULT nextval('cemantig_guesses_id_seq'::regclass),
+  session_id integer,
+  player_id integer,
+  word text NOT NULL,
+  similarity integer NOT NULL,
+  guessed_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT cemantig_guesses_pkey PRIMARY KEY (id),
+  CONSTRAINT cemantig_guesses_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.cemantig_sessions(id),
+  CONSTRAINT cemantig_guesses_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(id)
+);
+CREATE TABLE public.cemantig_sessions (
+  id integer NOT NULL DEFAULT nextval('cemantig_sessions_id_seq'::regclass),
+  secret_word text NOT NULL,
+  status text DEFAULT 'active'::text,
+  started_at timestamp without time zone DEFAULT now(),
+  finished_at timestamp without time zone,
+  winner_id integer,
+  total_guesses integer DEFAULT 0,
+  CONSTRAINT cemantig_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT cemantig_sessions_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.players(id)
 );
 CREATE TABLE public.chat_messages (
   id integer NOT NULL DEFAULT nextval('chat_messages_id_seq'::regclass),
@@ -100,8 +125,15 @@ CREATE TABLE public.sudoku_games (
   created_at timestamp with time zone DEFAULT now(),
   started_at timestamp with time zone,
   finished_at timestamp with time zone,
+  host_id integer,
+  host_progress text DEFAULT ''::text,
+  challenger_progress text DEFAULT ''::text,
+  time_seconds integer,
+  challenger_id integer,
   CONSTRAINT sudoku_games_pkey PRIMARY KEY (id),
-  CONSTRAINT sudoku_games_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.players(id)
+  CONSTRAINT sudoku_games_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.players(id),
+  CONSTRAINT sudoku_games_host_id_fkey FOREIGN KEY (host_id) REFERENCES public.players(id),
+  CONSTRAINT sudoku_games_challenger_id_fkey FOREIGN KEY (challenger_id) REFERENCES public.players(id)
 );
 CREATE TABLE public.sudoku_players (
   id integer NOT NULL DEFAULT nextval('sudoku_players_id_seq'::regclass),
@@ -153,11 +185,11 @@ CREATE TABLE public.viewer_presence (
   first_seen timestamp with time zone NOT NULL,
   last_seen timestamp with time zone NOT NULL,
   message_count integer DEFAULT 1,
+  watch_time_seconds integer DEFAULT 0,
   CONSTRAINT viewer_presence_pkey PRIMARY KEY (id),
   CONSTRAINT viewer_presence_stream_id_fkey FOREIGN KEY (stream_id) REFERENCES public.twitch_streams(id),
   CONSTRAINT viewer_presence_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(id)
 );
-
 ## Known Tables
 
 Based on the codebase, these tables are used:
