@@ -297,10 +297,15 @@ export default function SudokuPage() {
             const res = await fetch('/api/sudoku/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: '1v1', difficulty, userId: 'xsgwen', username: 'xsgwen' })
+                body: JSON.stringify({ mode: '1v1', difficulty, userId: user.username, username: user.username })
             })
             const data = await res.json()
-            if (!data.success) setMessage(data.error || 'Erreur lors de la création')
+            if (data.success) {
+                // Refresh game status to show waiting screen
+                await checkGameStatus()
+            } else {
+                setMessage(data.error || 'Erreur lors de la création')
+            }
         } catch (error) {
             console.error('Error creating 1v1:', error)
             setMessage('Erreur de connexion')

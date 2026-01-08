@@ -81,13 +81,20 @@ export async function POST(request: Request) {
             })
         }
 
-        // 1v1 mode - must be authenticated and be xsgwen
+        // 1v1 mode - must be authenticated and authorized
         if (!userId || !username) {
             return NextResponse.json({ error: 'Authentication required for 1v1' }, { status: 401 })
         }
 
-        if (username.toLowerCase() !== 'xsgwen') {
-            return NextResponse.json({ error: 'Only the streamer can create 1v1 games' }, { status: 403 })
+        // Check if user is authorized
+        const { data: authorizedUser } = await supabase
+            .from('authorized_users')
+            .select('username')
+            .eq('username', username.toLowerCase())
+            .single()
+
+        if (!authorizedUser) {
+            return NextResponse.json({ error: 'Only authorized users can create 1v1 games' }, { status: 403 })
         }
 
         // Check for existing active game
