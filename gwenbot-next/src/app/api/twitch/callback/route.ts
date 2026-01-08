@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
     const code = searchParams.get('code')
     const error = searchParams.get('error')
     const errorDescription = searchParams.get('error_description')
-    const tokenType = searchParams.get('type') || 'broadcaster' // 'bot' or 'broadcaster'
+    const state = searchParams.get('state')
+    const tokenType = (state === 'bot' || state === 'broadcaster') ? state : 'broadcaster'
 
     // Handle OAuth errors
     if (error) {
@@ -46,8 +47,7 @@ export async function GET(request: NextRequest) {
 
     try {
         // Exchange code for access token
-        // Note: redirect_uri must match exactly what was used in the authorization request
-        const redirectUri = `${BASE_URL}/api/twitch/callback?type=${tokenType}`
+        const redirectUri = `${BASE_URL}/api/twitch/callback`
 
         const tokenResponse = await fetch('https://id.twitch.tv/oauth2/token', {
             method: 'POST',

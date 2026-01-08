@@ -114,7 +114,7 @@ export default function MaintenancePage() {
                     </div>
 
                     <a
-                        href={`https://id.twitch.tv/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || 'YOUR_CLIENT_ID'}&redirect_uri=${encodeURIComponent((process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000') + '/api/twitch/callback?type=broadcaster')}&response_type=code&scope=${encodeURIComponent('bits:read channel:bot channel:manage:broadcast channel:manage:polls channel:manage:predictions channel:manage:redemptions channel:read:hype_train channel:read:polls channel:read:predictions channel:read:redemptions channel:read:subscriptions chat:edit chat:read moderator:read:chatters moderator:read:followers user:read:email')}`}
+                        href={`https://id.twitch.tv/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || 'YOUR_CLIENT_ID'}&redirect_uri=${encodeURIComponent((process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000') + '/api/twitch/callback')}&response_type=code&scope=${encodeURIComponent('bits:read channel:bot channel:manage:broadcast channel:manage:polls channel:manage:predictions channel:manage:redemptions channel:read:hype_train channel:read:polls channel:read:predictions channel:read:redemptions channel:read:subscriptions chat:edit chat:read moderator:read:chatters moderator:read:followers user:read:email')}&state=broadcaster`}
                         className="btn btn-secondary"
                         style={{
                             display: 'inline-flex',
@@ -132,7 +132,7 @@ export default function MaintenancePage() {
                     </a>
 
                     <a
-                        href={`https://id.twitch.tv/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || 'YOUR_CLIENT_ID'}&redirect_uri=${encodeURIComponent((process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000') + '/api/twitch/callback?type=bot')}&response_type=code&scope=${encodeURIComponent('clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:chatters moderator:read:followers user:bot user:read:chat user:write:chat')}`}
+                        href={`https://id.twitch.tv/oauth2/authorize?client_id=${process.env.NEXT_PUBLIC_TWITCH_CLIENT_ID || 'YOUR_CLIENT_ID'}&redirect_uri=${encodeURIComponent((process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000') + '/api/twitch/callback')}&response_type=code&scope=${encodeURIComponent('clips:edit moderator:manage:announcements moderator:manage:banned_users moderator:manage:chat_messages moderator:read:chatters moderator:read:followers user:bot user:read:chat user:write:chat')}&state=bot`}
                         className="btn btn-secondary"
                         style={{
                             display: 'inline-flex',
