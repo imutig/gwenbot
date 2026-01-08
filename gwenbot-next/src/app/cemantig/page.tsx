@@ -320,7 +320,7 @@ export default function CemantigPage() {
                         textAlign: 'center',
                         color: 'white'
                     }}>
-                        <div style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'center' }}>
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '40px', height: '40px' }}>
                                 <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
                                 <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
