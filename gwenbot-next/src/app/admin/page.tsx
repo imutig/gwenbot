@@ -22,13 +22,25 @@ export default async function AdminPage() {
     }
 
     // Check if admin
+    // Twitch stores username in different metadata fields depending on OAuth config
+    const twitchUsername = (
+        user.user_metadata?.preferred_username ||
+        user.user_metadata?.user_name ||
+        user.user_metadata?.name ||
+        user.user_metadata?.full_name ||
+        ''
+    ).toLowerCase()
+
+    console.log('[Admin] Checking user:', twitchUsername, 'Raw metadata:', JSON.stringify(user.user_metadata))
+
     const { data: adminUser } = await supabase
         .from('authorized_users')
         .select('username, is_super_admin')
-        .eq('username', user.user_metadata?.user_name?.toLowerCase())
+        .eq('username', twitchUsername)
         .single()
 
     if (!adminUser) {
+        console.log('[Admin] User not found in authorized_users, redirecting')
         redirect('/')
     }
 
