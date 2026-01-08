@@ -49,6 +49,13 @@ body {
   color: var(--text-primary);
 }
 
+/* Overlay mode - transparent background for OBS Browser Source */
+body.overlay-mode {
+  background: transparent !important;
+  background-color: transparent !important;
+  min-height: auto;
+}
+
 /* === Floral Background === */
 .floral-bg {
   position: fixed;

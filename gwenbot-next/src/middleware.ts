@@ -13,10 +13,11 @@ export async function middleware(request: NextRequest) {
         console.log(`[Middleware] MAINTENANCE_MODE=${process.env.MAINTENANCE_MODE}, bypassCookie=${bypassCookie}`)
     }
 
-    // Allow access to maintenance page, bypass API, and all API routes
+    // Allow access to maintenance page, bypass API, all API routes, and overlay routes
     const isMaintenancePath = pathname === '/maintenance' ||
         pathname.startsWith('/api/maintenance') ||
-        pathname.startsWith('/api/')  // Allow all API routes through
+        pathname.startsWith('/api/') ||  // Allow all API routes through
+        pathname.startsWith('/overlay')  // Allow overlay routes for OBS Browser Source
 
     if (maintenanceMode && !bypassCookie && !isMaintenancePath) {
         return NextResponse.redirect(new URL('/maintenance', request.url))
