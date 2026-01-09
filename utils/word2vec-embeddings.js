@@ -248,6 +248,55 @@ class Word2VecEmbeddings {
         return validWords[randomIndex];
     }
 
+    /**
+     * Trouve des mots similaires à un mot donné
+     * @param {string} word - Le mot cible
+     * @param {number} count - Nombre de mots à retourner
+     * @param {number} minSimilarity - Similarité minimum (0-1000)
+     * @param {number} maxSimilarity - Similarité maximum (0-1000) pour éviter les mots trop proches
+     * @returns {Array<{word: string, similarity: number}>}
+     */
+    getSimilarWords(word, count = 5, minSimilarity = 400, maxSimilarity = 850) {
+        const targetWord = word.toLowerCase().trim();
+        const targetVec = this.getVector(targetWord);
+
+        if (!targetVec) return [];
+
+        const similarities = [];
+
+        for (const [w] of this.embeddings.entries()) {
+            // Skip the target word itself and words too short/long
+            if (w === targetWord) continue;
+            if (w.length < 4 || w.length > 12) continue;
+            if (!/^[a-zàâäéèêëïîôùûüçœæ]+$/.test(w)) continue;
+
+            const similarity = this.getSimilarity(targetWord, w);
+
+            // Only include words in the desired range
+            if (similarity >= minSimilarity && similarity <= maxSimilarity) {
+                similarities.push({ word: w, similarity });
+            }
+        }
+
+        // Sort by similarity (descending) and take top N
+        similarities.sort((a, b) => b.similarity - a.similarity);
+        return similarities.slice(0, count);
+    }
+
+    /**
+     * Obtient un indice aléatoire pour un mot (mot similaire)
+     * @param {string} word - Le mot secret
+     * @returns {{word: string, similarity: number} | null}
+     */
+    getHint(word) {
+        const similarWords = this.getSimilarWords(word, 20, 500, 800);
+        if (similarWords.length === 0) return null;
+
+        // Pick a random one from the similar words
+        const randomIndex = Math.floor(Math.random() * Math.min(similarWords.length, 10));
+        return similarWords[randomIndex];
+    }
+
     get size() {
         return this.embeddings.size;
     }
@@ -256,3 +305,4 @@ class Word2VecEmbeddings {
 // Singleton instance
 const word2vecEmbeddings = new Word2VecEmbeddings();
 module.exports = word2vecEmbeddings;
+

@@ -514,7 +514,7 @@ async function handleMessage(msg) {
                     return;
                 }
 
-                // Calculate similarity locally
+                // Calculate similarity locally using word2vec
                 const similarity = embeddings.getSimilarity(word, secretData.secret_word);
 
                 // Send to API to save with HMAC signature
@@ -544,6 +544,57 @@ async function handleMessage(msg) {
             } catch (error) {
                 console.error('Cemantig guess error:', error);
                 // Only respond on actual errors, not for normal flow
+            }
+            return;
+        }
+
+        // === Commande mod: !indice [score] (Cemantig hint) ===
+        if (command === 'indice' || command === 'hint') {
+            // Only mods and streamer can give hints
+            if (!isModerator(msg)) {
+                twitchClient.say(msg.channel, `@${msg.username} Seuls les modos peuvent donner des indices !`);
+                return;
+            }
+
+            // Parse optional minimum score parameter
+            const minScore = args[0] ? parseInt(args[0], 10) : 500;
+            const validMinScore = isNaN(minScore) ? 500 : Math.max(300, Math.min(900, minScore));
+
+            try {
+                // Get the secret word from the API
+                const secretPayload = { action: 'get_secret' };
+                const secretAuth = signRequest(secretPayload, process.env.BOT_SECRET || '');
+                const secretRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/cemantig/secret`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-timestamp': secretAuth.timestamp.toString(),
+                        'x-signature': secretAuth.signature
+                    },
+                    body: JSON.stringify(secretPayload)
+                });
+                const secretData = await secretRes.json();
+
+                if (!secretData.secret_word) {
+                    twitchClient.say(msg.channel, `@${msg.username} Aucune session Cemantig en cours !`);
+                    return;
+                }
+
+                // Get a hint (similar word) with custom min score
+                const similarWords = embeddings.getSimilarWords(secretData.secret_word, 20, validMinScore, 850);
+                if (similarWords.length === 0) {
+                    twitchClient.say(msg.channel, `@${msg.username} Pas d'indice disponible avec un score >= ${validMinScore}.`);
+                    return;
+                }
+
+                // Pick a random one from the top 10
+                const randomIndex = Math.floor(Math.random() * Math.min(similarWords.length, 10));
+                const hint = similarWords[randomIndex];
+
+                twitchClient.say(msg.channel, `💡 INDICE: Un mot proche est « ${hint.word} » (${hint.similarity}/1000)`);
+            } catch (error) {
+                console.error('Hint error:', error);
+                twitchClient.say(msg.channel, `@${msg.username} Erreur lors de la récupération de l'indice.`);
             }
             return;
         }

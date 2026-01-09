@@ -1,8 +1,28 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import wordList from '@/lib/word-list.json'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+// Convert word list to Set for O(1) lookup
+const validWords = new Set(wordList as string[])
+
+/**
+ * Get a random word from the word list
+ */
+function getRandomWord(): string {
+    const words = wordList as string[]
+    const index = Math.floor(Math.random() * words.length)
+    return words[index]
+}
+
+/**
+ * Check if a word exists in the dictionary
+ */
+function isValidWord(word: string): boolean {
+    return validWords.has(word.toLowerCase().trim())
+}
 
 export async function POST(request: Request) {
     if (!supabaseUrl || !supabaseServiceKey) {
@@ -13,7 +33,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json()
-        const { username, secret_word } = body
+        const { username, secret_word, random = false } = body
 
         // Check if user is authorized (streamer or mod)
         const { data: authorized } = await supabase
@@ -37,12 +57,27 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Une session est déjà en cours' }, { status: 400 })
         }
 
-        // Generate or use provided secret word
-        let wordToUse = secret_word?.toLowerCase().trim()
+        let wordToUse: string
+        let isRandomWord = false
 
-        if (!wordToUse) {
-            // Generate random word - this will be done by the bot which has embeddings loaded
-            return NextResponse.json({ error: 'Mot secret requis' }, { status: 400 })
+        if (random) {
+            // Generate random word from our dictionary
+            wordToUse = getRandomWord()
+            isRandomWord = true
+        } else {
+            // Use provided secret word
+            wordToUse = secret_word?.toLowerCase().trim()
+
+            if (!wordToUse) {
+                return NextResponse.json({ error: 'Mot secret requis' }, { status: 400 })
+            }
+
+            // Validate the word exists in the dictionary
+            if (!isValidWord(wordToUse)) {
+                return NextResponse.json({
+                    error: `Le mot "${wordToUse}" n'existe pas dans le dictionnaire. Choisis un autre mot ou utilise le mode aléatoire.`
+                }, { status: 400 })
+            }
         }
 
         // Create new session
@@ -50,9 +85,10 @@ export async function POST(request: Request) {
             .from('cemantig_sessions')
             .insert({
                 secret_word: wordToUse,
-                status: 'active'
+                status: 'active',
+                is_random: isRandomWord
             })
-            .select('id, started_at')
+            .select('id, started_at, is_random')
             .single()
 
         if (error) throw error
@@ -61,9 +97,12 @@ export async function POST(request: Request) {
             success: true,
             session: {
                 id: session.id,
-                started_at: session.started_at
+                started_at: session.started_at,
+                is_random: session.is_random
             },
-            message: 'Session Cemantig démarrée !'
+            message: isRandomWord
+                ? 'Session Cemantig démarrée avec un mot aléatoire !'
+                : 'Session Cemantig démarrée !'
         })
     } catch (error) {
         console.error('Error starting session:', error)

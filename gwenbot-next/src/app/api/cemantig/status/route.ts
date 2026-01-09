@@ -15,7 +15,7 @@ export async function GET() {
         // Get active session
         const { data: session } = await supabase
             .from('cemantig_sessions')
-            .select('id, status, started_at, total_guesses')
+            .select('id, status, started_at, total_guesses, is_random')
             .eq('status', 'active')
             .single()
 
@@ -179,7 +179,8 @@ export async function GET() {
             session: {
                 id: session.id,
                 started_at: session.started_at,
-                total_guesses: session.total_guesses || 0
+                total_guesses: session.total_guesses || 0,
+                is_random: session.is_random || false
             },
             topGuesses: formatGuesses(topGuesses),
             recentGuesses: formatGuesses(recentGuesses),

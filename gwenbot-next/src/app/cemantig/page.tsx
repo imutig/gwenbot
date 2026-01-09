@@ -24,6 +24,7 @@ interface Session {
     id: number
     started_at: string
     total_guesses: number
+    is_random?: boolean
 }
 
 interface LastSession {
@@ -138,8 +139,8 @@ export default function CemantigPage() {
 
 
 
-    const handleStartSession = async () => {
-        if (!secretWord.trim()) {
+    const handleStartSession = async (random = false) => {
+        if (!random && !secretWord.trim()) {
             setMessage('Entre un mot secret')
             return
         }
@@ -150,14 +151,15 @@ export default function CemantigPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username: user?.username,
-                    secret_word: secretWord
+                    secret_word: random ? undefined : secretWord,
+                    random
                 })
             })
             const data = await res.json()
 
             if (data.success) {
                 setSecretWord('')
-                showToast('Session Cemantig démarrée !', 'success')
+                showToast(data.message || 'Session Cemantig démarrée !', 'success')
                 fetchStatus()
             } else {
                 showToast(data.error || 'Erreur lors du démarrage', 'error')
@@ -281,29 +283,54 @@ export default function CemantigPage() {
                         <h3 style={{ fontWeight: 600, marginBottom: '1rem' }}>Admin</h3>
 
                         {!isActive ? (
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input
-                                    type="text"
-                                    value={secretWord}
-                                    onChange={(e) => setSecretWord(e.target.value)}
-                                    placeholder="Mot secret..."
-                                    style={{
-                                        flex: 1,
-                                        padding: '0.75rem 1rem',
-                                        borderRadius: '8px',
-                                        border: '1px solid var(--border-color)',
-                                        background: 'var(--bg-input)',
-                                        color: 'var(--text-primary)'
-                                    }}
-                                />
-                                <FancyButton size="xs" onClick={handleStartSession}>
-                                    Démarrer
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <input
+                                        type="text"
+                                        value={secretWord}
+                                        onChange={(e) => setSecretWord(e.target.value)}
+                                        placeholder="Mot secret..."
+                                        style={{
+                                            flex: 1,
+                                            padding: '0.75rem 1rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid var(--border-color)',
+                                            background: 'var(--bg-input)',
+                                            color: 'var(--text-primary)'
+                                        }}
+                                    />
+                                    <FancyButton size="xs" onClick={() => handleStartSession(false)}>
+                                        Démarrer
+                                    </FancyButton>
+                                </div>
+                                <div style={{ textAlign: 'center' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>ou</span>
+                                </div>
+                                <FancyButton size="xs" onClick={() => handleStartSession(true)}>
+                                    🎲 Mot aléatoire (tu pourras jouer !)
                                 </FancyButton>
                             </div>
                         ) : (
-                            <FancyButton size="xs" onClick={handleEndSession}>
-                                Terminer la session
-                            </FancyButton>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <FancyButton size="xs" onClick={handleEndSession}>
+                                    Terminer la session
+                                </FancyButton>
+
+                                {/* Allow streamer to play if random session */}
+                                {session?.is_random && (
+                                    <div style={{
+                                        marginTop: '0.5rem',
+                                        padding: '1rem',
+                                        background: 'var(--bg-card)',
+                                        borderRadius: '10px',
+                                        border: '1px solid var(--pink-accent)'
+                                    }}>
+                                        <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                                            🎮 Mode aléatoire : tu peux jouer ! Utilise <code style={{ background: 'var(--pink-accent)', padding: '0.2rem 0.4rem', borderRadius: '4px', color: 'white' }}>!g ton_mot</code> dans le chat.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
                         )}
 
                         {message && (
