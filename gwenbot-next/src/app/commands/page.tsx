@@ -134,6 +134,28 @@ export default function CommandsPage() {
                         <div className="command-desc">Affiche le Top 5 des meilleurs joueurs Cemantix.</div>
                     </div>
 
+                    {/* Cemantig Commands */}
+                    <h2 className="category-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#ec4899" strokeWidth="2" style={{ width: '24px', height: '24px' }}>
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 16v-4" />
+                            <path d="M12 8h.01" />
+                        </svg>
+                        Commandes Cemantig
+                    </h2>
+
+                    <div className="command-card">
+                        <div className="command-name">!g &lt;mot&gt;<span className="command-badge badge-public">Tout le monde</span></div>
+                        <div className="command-desc">Propose un mot pour deviner le mot secret. Le bot calcule la similarité (0-1000).</div>
+                        <div className="command-example">!g chien → calcule la proximité avec le mot secret</div>
+                    </div>
+
+                    <div className="command-card">
+                        <div className="command-name">!indice [score]<span className="command-badge badge-mod">Modo</span></div>
+                        <div className="command-desc">Donne un indice : un mot proche du mot secret. Tu peux spécifier un score minimum (300-900).</div>
+                        <div className="command-example">!indice → score min 500 | !indice 700 → mot plus proche</div>
+                    </div>
+
                     {/* How it works */}
                     <h2 className="category-title">
                         <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '24px', height: '24px' }}>
