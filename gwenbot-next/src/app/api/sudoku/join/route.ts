@@ -13,18 +13,24 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json()
-        const { userId, username } = body
+        const { userId, username, gameId } = body
 
         if (!userId || !username) {
             return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
         }
 
-        // Get active waiting game
-        const { data: game } = await supabase
+        // Get waiting game - either specific one by ID or any waiting game
+        let gameQuery = supabase
             .from('sudoku_games')
-            .select('id, status')
+            .select('id, status, mode, is_battle_royale')
             .eq('status', 'waiting')
-            .single()
+
+        if (gameId) {
+            // Join specific lobby
+            gameQuery = gameQuery.eq('id', gameId)
+        }
+
+        const { data: game } = await gameQuery.limit(1).single()
 
         if (!game) {
             return NextResponse.json({ error: 'No waiting game found' }, { status: 404 })
@@ -57,6 +63,56 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Failed to get player' }, { status: 500 })
         }
 
+        // Handle Battle Royale mode (check both column and mode field for compatibility)
+        const isBattleRoyale = game.is_battle_royale || game.mode === 'battle_royale'
+        if (isBattleRoyale) {
+            // Check if already registered
+            const { data: existing } = await supabase
+                .from('sudoku_br_players')
+                .select('id')
+                .eq('game_id', game.id)
+                .eq('player_id', player.id)
+                .single()
+
+            if (existing) {
+                return NextResponse.json({ error: 'Already registered' }, { status: 400 })
+            }
+
+            // Add to BR players
+            const { error } = await supabase
+                .from('sudoku_br_players')
+                .insert({
+                    game_id: game.id,
+                    player_id: player.id,
+                    progress: '',
+                    cells_filled: 0,
+                    errors: 0,
+                    status: 'playing'
+                })
+
+            if (error) throw error
+
+            // Get updated player count
+            const { count } = await supabase
+                .from('sudoku_br_players')
+                .select('*', { count: 'exact', head: true })
+                .eq('game_id', game.id)
+
+            // Broadcast player joined
+            await supabase.channel('sudoku-broadcast').send({
+                type: 'broadcast',
+                event: 'sudoku_update',
+                payload: { action: 'br_player_joined', username: username.toLowerCase(), playerCount: count }
+            })
+
+            return NextResponse.json({
+                success: true,
+                playerCount: count,
+                message: `Tu as rejoint le Battle Royale !`
+            })
+        }
+
+        // 1v1 mode - add to queue
         // Check if already in queue
         const { data: existing } = await supabase
             .from('sudoku_queue')

@@ -50,6 +50,12 @@ interface SudokuEntry {
     time_seconds: number
 }
 
+interface BRWinsEntry {
+    rank: number
+    username: string
+    wins: number
+}
+
 export default function StatsPage() {
     const [searchTerm, setSearchTerm] = useState('')
     const [userStats, setUserStats] = useState<UserStats | null>(null)
@@ -61,6 +67,7 @@ export default function StatsPage() {
     const [watchTimeLeaderboard, setWatchTimeLeaderboard] = useState<WatchTimeEntry[]>([])
     const [sudokuLeaderboard, setSudokuLeaderboard] = useState<SudokuEntry[]>([])
     const [sudokuDifficulty, setSudokuDifficulty] = useState<'all' | 'easy' | 'medium' | 'hard'>('all')
+    const [brWinsLeaderboard, setBrWinsLeaderboard] = useState<BRWinsEntry[]>([])
     const [loadingStats, setLoadingStats] = useState(true)
 
     // Load global stats on mount
@@ -69,12 +76,14 @@ export default function StatsPage() {
             fetch('/api/stats/top-messages').then(r => r.json()),
             fetch('/api/stats/top-emojis').then(r => r.json()),
             fetch('/api/stats/watch-time').then(r => r.json()),
-            fetch('/api/sudoku/leaderboard').then(r => r.json())
-        ]).then(([messages, emojis, watchTime, sudoku]) => {
+            fetch('/api/sudoku/leaderboard').then(r => r.json()),
+            fetch('/api/sudoku/br-leaderboard').then(r => r.json())
+        ]).then(([messages, emojis, watchTime, sudoku, brWins]) => {
             setTopMessages(messages.topMessages || [])
             setTopEmojis(emojis.topEmojis || [])
             setWatchTimeLeaderboard(watchTime.leaderboard || [])
             setSudokuLeaderboard(sudoku.leaderboard || [])
+            setBrWinsLeaderboard(brWins.leaderboard || [])
             setLoadingStats(false)
         }).catch(err => {
             console.error('Error loading stats:', err)
@@ -343,6 +352,51 @@ export default function StatsPage() {
                                         </div>
                                     </div>
                                 ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Battle Royale Wins Leaderboard */}
+                <div className="glass-card" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1rem', marginBottom: '1rem', color: 'var(--text-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '18px', height: '18px' }}>
+                            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                            <path d="M4 22h16" />
+                            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                            <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+                            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                        </svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '18px', height: '18px' }}>
+                            <polygon points="6 3 20 12 6 21 6 3" fill="var(--pink-accent)" />
+                        </svg>
+                        Battle Royale - Top Victoires
+                    </h3>
+                    {loadingStats ? (
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}><Loader size="sm" /></div>
+                    ) : brWinsLeaderboard.length === 0 ? (
+                        <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Pas encore de victoires enregistrées</p>
+                    ) : (
+                        <div>
+                            {brWinsLeaderboard.slice(0, 10).map((entry, i) => (
+                                <div key={`br-${entry.username}-${i}`} className="leaderboard-item">
+                                    <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`}>
+                                        {i + 1}
+                                    </div>
+                                    <div style={{ flex: 1, fontWeight: 500 }}>{entry.username}</div>
+                                    <div style={{ color: 'var(--pink-accent)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '14px', height: '14px' }}>
+                                            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                                            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                                            <path d="M4 22h16" />
+                                            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+                                            <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+                                            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                                        </svg>
+                                        {entry.wins} victoire{entry.wins > 1 ? 's' : ''}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>

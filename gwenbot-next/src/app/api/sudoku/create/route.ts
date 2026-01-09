@@ -84,34 +84,12 @@ export async function POST(request: Request) {
             })
         }
 
-        // 1v1 mode - must be authenticated and authorized
+        // 1v1 or Battle Royale mode - must be authenticated
         if (!userId || !username) {
-            return NextResponse.json({ error: 'Authentication required for 1v1' }, { status: 401 })
+            return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
         }
 
-        // Check if user is authorized
-        const { data: authorizedUser } = await supabase
-            .from('authorized_users')
-            .select('username')
-            .eq('username', username.toLowerCase())
-            .single()
-
-        if (!authorizedUser) {
-            return NextResponse.json({ error: 'Only authorized users can create 1v1 games' }, { status: 403 })
-        }
-
-        // Check for existing active game
-        const { data: existingGame } = await supabase
-            .from('sudoku_games')
-            .select('id')
-            .in('status', ['waiting', 'picking', 'playing'])
-            .single()
-
-        if (existingGame) {
-            return NextResponse.json({ error: 'A game is already in progress' }, { status: 400 })
-        }
-
-        // Get or create player
+        // Get or create player first (moved up)
         let { data: player } = await supabase
             .from('players')
             .select('id')
@@ -127,7 +105,71 @@ export async function POST(request: Request) {
             player = newPlayer
         }
 
-        // Create game
+        // Check if user already hosts a lobby (waiting or playing)
+        // Users can JOIN other lobbies, but can only CREATE one at a time
+        const { data: existingLobby } = await supabase
+            .from('sudoku_games')
+            .select('id, status, mode')
+            .eq('host_id', player?.id)
+            .in('status', ['waiting', 'picking', 'playing'])
+            .limit(1)
+            .maybeSingle()
+
+        console.log('[Sudoku Create] Host check:', { playerId: player?.id, existingLobby })
+
+        if (existingLobby) {
+            console.log('[Sudoku Create] BLOCKED - user already hosts a lobby')
+            return NextResponse.json({
+                error: 'Tu as déjà un lobby en cours',
+                details: `Game #${existingLobby.id} (${existingLobby.mode}, ${existingLobby.status})`
+            }, { status: 400 })
+        }
+
+        // Handle Battle Royale mode
+        if (mode === 'battle_royale') {
+            // Create BR game
+            const { data: game, error } = await supabase
+                .from('sudoku_games')
+                .insert({
+                    mode: 'battle_royale',
+                    difficulty,
+                    puzzle,
+                    solution,
+                    status: 'waiting',
+                    host_id: player?.id,
+                    is_battle_royale: true
+                })
+                .select('id, mode, difficulty, puzzle, status, created_at')
+                .single()
+
+            if (error) throw error
+
+            // Add host as first BR player
+            await supabase
+                .from('sudoku_br_players')
+                .insert({
+                    game_id: game.id,
+                    player_id: player?.id,
+                    progress: '',
+                    cells_filled: 0,
+                    errors: 0,
+                    status: 'playing'
+                })
+
+            // Broadcast session creation
+            await supabase.channel('sudoku-broadcast').send({
+                type: 'broadcast',
+                event: 'sudoku_update',
+                payload: { action: 'br_session_created', host: username, gameId: game.id }
+            })
+
+            return NextResponse.json({
+                success: true,
+                game
+            })
+        }
+
+        // 1v1 mode
         const { data: game, error } = await supabase
             .from('sudoku_games')
             .insert({
@@ -138,7 +180,8 @@ export async function POST(request: Request) {
                 status: 'waiting',
                 host_id: player?.id,
                 host_progress: '',
-                challenger_progress: ''
+                challenger_progress: '',
+                is_battle_royale: false
             })
             .select('id, mode, difficulty, puzzle, status, created_at')
             .single()

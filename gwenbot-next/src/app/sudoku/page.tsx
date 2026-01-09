@@ -54,19 +54,57 @@ const TrophyIcon = ({ size = 48 }: { size?: number }) => (
     </svg>
 )
 
-type Mode = 'solo' | '1v1'
+const CrownIcon = ({ size = 16 }: { size?: number }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: `${size}px`, height: `${size}px` }}>
+        <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
+        <path d="M5 21h14" />
+    </svg>
+)
+
+const PlayIcon = ({ size = 16 }: { size?: number }) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: `${size}px`, height: `${size}px` }}>
+        <polygon points="6 3 20 12 6 21 6 3" fill="currentColor" />
+    </svg>
+)
+
+type Mode = 'solo' | '1v1' | 'battle_royale'
 type Difficulty = 'easy' | 'medium' | 'hard'
 type GameStatus = 'idle' | 'waiting' | 'playing' | 'finished'
+
+interface Lobby {
+    id: number
+    mode: string
+    difficulty: string
+    isBattleRoyale: boolean
+    host: { id: number; username: string } | null
+    playerCount: number
+    createdAt: string
+}
+
+interface BRPlayer {
+    playerId: number
+    username: string
+    progress: string
+    cellsFilled: number
+    errors: number
+    status: 'playing' | 'eliminated' | 'finished'
+    finishRank?: number
+    finishTime?: number
+}
 
 interface GameState {
     id?: number
     puzzle?: string
     solution?: string
     status: GameStatus
+    isBattleRoyale?: boolean
     host?: { username: string }
     challenger?: { username: string }
     winner?: { username: string }
     queue?: { username: string }[]
+    brPlayers?: BRPlayer[]
+    leaderProgress?: string
+    leaderUsername?: string
 }
 
 interface HistoryEntry {
@@ -109,8 +147,24 @@ export default function SudokuPage() {
     const [opponentErrors, setOpponentErrors] = useState(0)
     const [lossReason, setLossReason] = useState<'completed' | 'errors' | null>(null)
 
+    // Battle Royale specific states
+    const [isEliminated, setIsEliminated] = useState(false)
+    const [myBRRank, setMyBRRank] = useState<number | null>(null)
+    const [hasBRFinished, setHasBRFinished] = useState(false)
+    const [brGameFinished, setBrGameFinished] = useState(false)
+    const [brWinner, setBrWinner] = useState<string | null>(null)
+    const [brPlayers, setBrPlayers] = useState<BRPlayer[]>([])
+    const [leaderProgress, setLeaderProgress] = useState<string>('')
+    const [leaderUsername, setLeaderUsername] = useState<string>('')
+
+    // Lobby system states
+    const [lobbies, setLobbies] = useState<Lobby[]>([])
+
     // Flag to prevent grid reset when game is already initialized
     const gameInitializedRef = useRef(false)
+
+    // Flag to temporarily skip status checks after unregistering
+    const skipStatusCheckUntilRef = useRef<number>(0)
 
     // Load user from session on mount
     useEffect(() => {
@@ -155,15 +209,15 @@ export default function SudokuPage() {
             const key = e.key
             const isOriginalCell = originalPuzzle[selectedCell] !== 0
 
-            // Number keys 1-9 (only allowed on non-original cells)
+            // Number keys 1-9 (only allowed on non-original cells, and if not eliminated/finished)
             if (key >= '1' && key <= '9') {
-                if (isOriginalCell) return // Can't edit original cells
+                if (isOriginalCell || isEliminated || hasBRFinished) return // Can't edit
                 e.preventDefault()
                 handleNumberInput(parseInt(key))
             }
-            // Delete or Backspace to clear (only allowed on non-original cells)
+            // Delete or Backspace to clear (only allowed on non-original cells, and if not eliminated/finished)
             else if (key === 'Delete' || key === 'Backspace' || key === '0') {
-                if (isOriginalCell) return // Can't edit original cells
+                if (isOriginalCell || isEliminated || hasBRFinished) return // Can't edit
                 e.preventDefault()
                 handleNumberInput(0)
             }
@@ -207,77 +261,91 @@ export default function SudokuPage() {
     }, [user.username])
 
     const checkGameStatus = useCallback(async () => {
+        // Skip if we recently unregistered (prevents race condition with broadcasts)
+        if (Date.now() < skipStatusCheckUntilRef.current) {
+            console.log('[Sudoku] Skipping checkGameStatus - recently unregistered')
+            return
+        }
+
         try {
-            const res = await fetch('/api/sudoku/status')
+            const res = await fetch(`/api/sudoku/status?username=${encodeURIComponent(user.username)}`)
             const data = await res.json()
             console.log('[Sudoku] checkGameStatus response:', data)
 
-            if (data.active && data.game) {
+            // Always update lobbies list
+            setLobbies(data.lobbies || [])
+
+            // Handle user's active game
+            if (data.myGame) {
+                const game = data.myGame
                 setGameState({
-                    id: data.game.id,
-                    puzzle: data.game.puzzle,
-                    solution: data.game.solution,
-                    status: data.game.status as GameStatus,
-                    host: data.game.host,
-                    challenger: data.game.challenger,
-                    winner: data.game.winner,
-                    queue: data.queue
+                    id: game.id,
+                    puzzle: game.puzzle,
+                    solution: game.solution,
+                    status: game.status as GameStatus,
+                    isBattleRoyale: game.isBattleRoyale,
+                    host: game.host,
+                    challenger: game.challenger,
+                    winner: game.winner,
+                    queue: game.queue,
+                    brPlayers: game.brPlayers
                 })
 
-                if (data.game.puzzle && data.game.status === 'playing') {
-                    const puzzleArray = data.game.puzzle.split('').map(Number)
+                if (game.puzzle && game.status === 'playing') {
+                    const puzzleArray = game.puzzle.split('').map(Number)
 
-                    // Check if user is a participant in this 1v1
-                    const isHost = data.game.host?.username?.toLowerCase() === user.username.toLowerCase()
-                    const isChallenger = data.game.challenger?.username?.toLowerCase() === user.username.toLowerCase()
-                    const isParticipant = isHost || isChallenger
+                    // Only set grid if not already initialized
+                    if (!gameInitializedRef.current) {
+                        setGrid(puzzleArray)
+                        setOriginalPuzzle(puzzleArray)
+                        setTimer(0)
+                        setIsTimerRunning(true)
+                        gameInitializedRef.current = true
+                    }
 
-                    console.log('[Sudoku] Participant check:', { isHost, isChallenger, isParticipant, user: user.username })
-
-                    // Only initialize grid for participants
-                    if (isParticipant) {
-                        // Only set grid if not already initialized (don't overwrite user's progress)
-                        if (!gameInitializedRef.current) {
-                            setGrid(puzzleArray)
-                            setOriginalPuzzle(puzzleArray)
-                            // Start timer when game starts
-                            setTimer(0)
-                            setIsTimerRunning(true)
-                            gameInitializedRef.current = true
-                        }
-
-                        // Set opponent progress for 1v1
-                        console.log('[Sudoku] isHost:', isHost, 'user:', user.username, 'host:', data.game.host?.username)
-                        console.log('[Sudoku] hostProgress:', data.game.hostProgress, 'challengerProgress:', data.game.challengerProgress)
-
+                    // Handle 1v1 opponent progress
+                    if (!game.isBattleRoyale && (game.host || game.challenger)) {
+                        const isHost = game.host?.username?.toLowerCase() === user.username.toLowerCase()
                         if (isHost) {
-                            // I'm host, show challenger's progress
-                            if (data.game.challengerProgress) {
-                                setOpponentProgress(data.game.challengerProgress)
-                            }
-                            setOpponentUsername(data.game.challenger?.username || 'Adversaire')
+                            if (game.challengerProgress) setOpponentProgress(game.challengerProgress)
+                            setOpponentUsername(game.challenger?.username || 'Adversaire')
                         } else {
-                            // I'm challenger, show host's progress
-                            if (data.game.hostProgress) {
-                                setOpponentProgress(data.game.hostProgress)
-                            }
-                            setOpponentUsername(data.game.host?.username || 'Adversaire')
+                            if (game.hostProgress) setOpponentProgress(game.hostProgress)
+                            setOpponentUsername(game.host?.username || 'Adversaire')
                         }
-                    } else {
-                        // Non-participant: show a spectator message or idle state
-                        console.log('[Sudoku] User is not a participant in this 1v1')
-                        // Don't initialize the game for spectators - show waiting/idle state
-                        if (gameState.status !== 'finished') {
-                            setMessage(`Une partie 1v1 est en cours entre ${data.game.host?.username} et ${data.game.challenger?.username}`)
+                    }
+
+                    // Handle BR
+                    if (game.isBattleRoyale) {
+                        setLeaderProgress(game.leaderProgress || '')
+                        setLeaderUsername(game.leaderUsername || '')
+                        setBrPlayers(game.brPlayers || [])
+
+                        // Set player's BR status from API
+                        if (game.myStatus === 'eliminated') {
+                            setIsEliminated(true)
+                            setIsTimerRunning(false)
+                        } else if (game.myStatus === 'finished') {
+                            setHasBRFinished(true)
+                            setIsTimerRunning(false)
+                        }
+                        if (game.myRank) {
+                            setMyBRRank(game.myRank)
+                        }
+                        if (game.myErrors !== undefined) {
+                            setErrorCount(game.myErrors)
                         }
                     }
                 }
             } else {
-                // Only reset to idle if we're not already in finished state (showing victory screen)
+                // No active game for user - show idle with lobbies
                 if (gameState.status !== 'finished') {
                     setGameState({ status: 'idle' })
                     setOpponentProgress('')
                     setOpponentUsername('')
+                    setIsEliminated(false)
+                    setHasBRFinished(false)
+                    setMyBRRank(null)
                     gameInitializedRef.current = false
                 }
             }
@@ -323,6 +391,41 @@ export default function SudokuPage() {
                         setGameState(prev => ({ ...prev, status: 'finished', winner: { username: winnerUsername } }))
                         setMessage(`${winnerUsername} a remporté la partie !`)
                     }
+                } else if (payload.payload?.action === 'br_player_finished') {
+                    // Someone finished the BR puzzle
+                    const finisherUsername = payload.payload.username
+                    const finishRank = payload.payload.finishRank
+
+                    // Show notification for everyone
+                    if (finishRank === 1) {
+                        setMessage(`🏆 ${finisherUsername} a terminé en premier !`)
+                    } else {
+                        setMessage(`✅ ${finisherUsername} a terminé #${finishRank}`)
+                    }
+
+                    // If it's me who finished, mark as finished
+                    if (finisherUsername?.toLowerCase() === user.username.toLowerCase()) {
+                        setHasBRFinished(true)
+                        setMyBRRank(finishRank)
+                        setIsTimerRunning(false)
+                    }
+
+                    // Refresh to update leaderboard
+                    checkGameStatus()
+                } else if (payload.payload?.action === 'br_game_finished') {
+                    // Game is fully over (all players done)
+                    setIsTimerRunning(false)
+                    setBrGameFinished(true)
+                    setBrWinner(payload.payload.winner || null)
+                    setMessage(`🏆 ${payload.payload.winner || 'Le gagnant'} a remporté le Battle Royale !`)
+                    checkGameStatus()
+                } else if (payload.payload?.action === 'br_player_eliminated') {
+                    // Someone got eliminated - just refresh to update leaderboard
+                    const eliminatedUser = payload.payload.username
+                    if (eliminatedUser?.toLowerCase() !== user.username.toLowerCase()) {
+                        setMessage(`💀 ${eliminatedUser} a été éliminé !`)
+                    }
+                    checkGameStatus()
                 } else {
                     // For other broadcasts (progress_update, queue_updated, etc.), refresh status
                     checkGameStatus()
@@ -430,6 +533,43 @@ export default function SudokuPage() {
         setLoading(false)
     }
 
+    const handleCreateBR = async () => {
+        if (!user.isAuthorized) {
+            setMessage('Seuls les utilisateurs autorisés peuvent créer un Battle Royale')
+            return
+        }
+
+        // Reset all states for new game
+        setErrorCount(0)
+        setOpponentErrors(0)
+        setLossReason(null)
+        setIsEliminated(false)
+        setMyBRRank(null)
+        setBrPlayers([])
+        setLeaderProgress('')
+        setLeaderUsername('')
+
+        setLoading(true)
+        try {
+            const res = await fetch('/api/sudoku/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'battle_royale', difficulty, userId: user.username, username: user.username })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setMode('battle_royale')
+                await checkGameStatus()
+            } else {
+                setMessage(data.error || 'Erreur lors de la création')
+            }
+        } catch (error) {
+            console.error('Error creating BR:', error)
+            setMessage('Erreur de connexion')
+        }
+        setLoading(false)
+    }
+
     const handleJoinQueue = async () => {
         // Reset error counts for new game
         setErrorCount(0)
@@ -452,6 +592,34 @@ export default function SudokuPage() {
         setLoading(false)
     }
 
+    // Join a specific lobby from the list
+    const handleJoinLobby = async (gameId: number, isBR: boolean) => {
+        setErrorCount(0)
+        setOpponentErrors(0)
+        setLossReason(null)
+
+        setLoading(true)
+        try {
+            const res = await fetch('/api/sudoku/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: user.username,
+                    username: user.username,
+                    gameId // Pass specific game ID
+                })
+            })
+            const data = await res.json()
+            setMessage(data.message || data.error)
+            // Refresh lobbies after joining
+            checkGameStatus()
+        } catch (error) {
+            console.error('Error joining lobby:', error)
+            setMessage('Erreur de connexion')
+        }
+        setLoading(false)
+    }
+
     const handlePickRandom = async () => {
         setLoading(true)
         try {
@@ -464,6 +632,76 @@ export default function SudokuPage() {
             setMessage(data.message || data.error)
         } catch (error) {
             console.error('Error picking:', error)
+        }
+        setLoading(false)
+    }
+
+    const handleStartBR = async () => {
+        setLoading(true)
+        try {
+            const res = await fetch('/api/sudoku/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user.username })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setMessage(data.message)
+                // Initialize the game for host
+                if (data.puzzle) {
+                    const puzzleArray = data.puzzle.split('').map(Number)
+                    setGrid(puzzleArray)
+                    setOriginalPuzzle(puzzleArray)
+                    setTimer(0)
+                    setIsTimerRunning(true)
+                    gameInitializedRef.current = true
+                    setGameState(prev => ({
+                        ...prev,
+                        status: 'playing',
+                        puzzle: data.puzzle,
+                        solution: data.solution
+                    }))
+                }
+            } else {
+                setMessage(data.error || 'Erreur lors du lancement')
+            }
+        } catch (error) {
+            console.error('Error starting BR:', error)
+            setMessage('Erreur de connexion')
+        }
+        setLoading(false)
+    }
+
+    const handleUnregisterBR = async () => {
+        setLoading(true)
+        try {
+            const res = await fetch('/api/sudoku/unregister', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user.username, gameId: gameState.id })
+            })
+            const data = await res.json()
+            if (data.success) {
+                setMessage(data.message || 'Désinscrit du Battle Royale')
+                // Reset all game state
+                setGameState({ status: 'idle' })
+                setGrid(Array(81).fill(0))
+                setOriginalPuzzle([])
+                setTimer(0)
+                setIsTimerRunning(false)
+                setIsEliminated(false)
+                setMyBRRank(null)
+                setBrPlayers([])
+                setErrorCount(0)
+                gameInitializedRef.current = false
+                // Skip status checks for 3 seconds to prevent broadcasts from reopening the game
+                skipStatusCheckUntilRef.current = Date.now() + 3000
+            } else {
+                setMessage(data.error || 'Erreur lors de la désinscription')
+            }
+        } catch (error) {
+            console.error('Error unregistering from BR:', error)
+            setMessage('Erreur de connexion')
         }
         setLoading(false)
     }
@@ -541,12 +779,36 @@ export default function SudokuPage() {
         setGrid(newGrid)
         addToHistory(newGrid)
 
-        // Check if 3 errors reached (game over)
+        // Check if 3 errors reached (game over / elimination)
         if (newErrorCount >= 3) {
             setIsTimerRunning(false)
-            setLossReason('errors')
 
-            // For 1v1, the opponent wins
+            // Handle BR elimination separately - no defeat screen, just mark as eliminated
+            if (gameState.isBattleRoyale && gameState.id) {
+                setIsEliminated(true)
+                setMessage('💀 3 erreurs ! Tu es éliminé.')
+
+                // Notify API of elimination
+                try {
+                    await fetch('/api/sudoku/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: user.username,
+                            progress: newGrid.join(''),
+                            time_seconds: timer,
+                            errors: newErrorCount,
+                            eliminated: true // Special flag for BR elimination
+                        })
+                    })
+                } catch (err) {
+                    console.error('Error syncing BR elimination:', err)
+                }
+                return
+            }
+
+            // 1v1 mode - the opponent wins
+            setLossReason('errors')
             if ((gameState.host || gameState.challenger) && gameState.id) {
                 const opponentName = opponentUsername || 'Adversaire'
                 setGameState({ ...gameState, status: 'finished', winner: { username: opponentName } })
@@ -621,6 +883,9 @@ export default function SudokuPage() {
 
     const checkCompletion = async (currentGrid: number[]) => {
         if (!gameState.solution) return
+
+        // BR completion is handled by the update API, not here
+        if (gameState.isBattleRoyale) return
 
         const isFilled = currentGrid.every(c => c !== 0)
         if (isFilled) {
@@ -1264,6 +1529,11 @@ export default function SudokuPage() {
                                 onClick={() => setMode('1v1')}>
                                 <SwordsIcon /> 1v1
                             </button>
+                            <button className={`btn ${mode === 'battle_royale' ? 'btn-primary' : 'btn-secondary'}`}
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                                onClick={() => setMode('battle_royale')}>
+                                <CrownIcon size={16} /> BR
+                            </button>
                         </div>
                     </div>
 
@@ -1288,23 +1558,84 @@ export default function SudokuPage() {
                                 {loading ? 'Chargement...' : 'Lancer la partie'}
                             </FancyButton>
                         </div>
+                    ) : mode === '1v1' ? (
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <FancyButton size="sm" onClick={handleCreate1v1} disabled={loading}>
+                                {loading ? 'Chargement...' : 'Créer une session 1v1'}
+                            </FancyButton>
+                        </div>
                     ) : (
-                        <div style={{ textAlign: 'center' }}>
-                            {user.isAuthorized ? (
-                                <FancyButton size="sm" onClick={handleCreate1v1} disabled={loading}>
-                                    {loading ? 'Chargement...' : 'Créer une session 1v1'}
-                                </FancyButton>
-                            ) : (
-                                <p style={{ color: 'var(--text-muted)' }}>
-                                    Seuls les utilisateurs autorisés peuvent créer une session 1v1
-                                </p>
-                            )}
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <FancyButton size="sm" onClick={handleCreateBR} disabled={loading}>
+                                {loading ? 'Chargement...' : <><PlayIcon size={16} /> Créer un Battle Royale</>}
+                            </FancyButton>
                         </div>
                     )}
 
                     <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '1rem', fontSize: '0.85rem' }}>
                         Utilise le clavier (1-9) ou les flèches pour naviguer
                     </p>
+
+                    {/* Lobbies List */}
+                    {lobbies.length > 0 && (
+                        <div style={{ marginTop: '2rem' }}>
+                            <h3 style={{
+                                fontSize: '1rem',
+                                fontWeight: 600,
+                                marginBottom: '1rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}>
+                                <GamepadIcon /> Parties en attente ({lobbies.length})
+                            </h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {lobbies.map((lobby) => (
+                                    <div
+                                        key={lobby.id}
+                                        style={{
+                                            background: 'var(--bg-card)',
+                                            borderRadius: '12px',
+                                            padding: '1rem',
+                                            border: '1px solid var(--border-color)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between'
+                                        }}
+                                    >
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                                {lobby.isBattleRoyale ? <CrownIcon size={16} /> : <SwordsIcon />}
+                                                <span style={{ fontWeight: 600 }}>
+                                                    {lobby.isBattleRoyale ? 'Battle Royale' : '1v1'}
+                                                </span>
+                                                <span style={{
+                                                    background: 'var(--pink-accent)',
+                                                    color: 'white',
+                                                    padding: '0.15rem 0.5rem',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.7rem',
+                                                    textTransform: 'capitalize'
+                                                }}>
+                                                    {lobby.difficulty}
+                                                </span>
+                                            </div>
+                                            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                                Host: {lobby.host?.username || 'Anonyme'} • {lobby.playerCount} joueur{lobby.playerCount !== 1 ? 's' : ''}
+                                            </div>
+                                        </div>
+                                        <FancyButton
+                                            size="sm"
+                                            onClick={() => handleJoinLobby(lobby.id, lobby.isBattleRoyale)}
+                                            disabled={loading}
+                                        >
+                                            {lobby.isBattleRoyale ? "S'inscrire" : 'Rejoindre'}
+                                        </FancyButton>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         )
@@ -1312,14 +1643,16 @@ export default function SudokuPage() {
 
     // Waiting state - queue view
     if (gameState.status === 'waiting') {
+        const isBR = gameState.isBattleRoyale || mode === 'battle_royale'
+
         return (
             <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
                 <div className="glass-card" style={{ padding: '2.5rem', maxWidth: '500px', width: '100%', textAlign: 'center' }}>
-                    <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
-                        <SwordsIcon />
+                    <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center', fontSize: '2rem' }}>
+                        {isBR ? <CrownIcon size={28} /> : <SwordsIcon />}
                     </div>
                     <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                        Session 1v1
+                        {isBR ? 'Battle Royale' : 'Session 1v1'}
                     </h1>
                     <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
                         Host: <span style={{ color: 'var(--pink-accent)', fontWeight: 600 }}>{gameState.host?.username || 'Anonyme'}</span>
@@ -1333,25 +1666,26 @@ export default function SudokuPage() {
                         border: '1px solid var(--border-color)'
                     }}>
                         <h3 style={{ marginBottom: '1rem', fontSize: '1rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                            <GamepadIcon /> File d&apos;attente ({gameState.queue?.length || 0})
+                            <GamepadIcon /> {isBR ? `Joueurs inscrits (${gameState.brPlayers?.length || gameState.queue?.length || 1})` : `File d'attente (${gameState.queue?.length || 0})`}
                         </h3>
 
-                        {gameState.queue && gameState.queue.length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {gameState.queue.map((q, i) => (
-                                    <div
-                                        key={i}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            padding: '0.75rem 1rem',
-                                            background: 'var(--bg-card)',
-                                            borderRadius: '12px',
-                                            border: '1px solid var(--border-color)'
-                                        }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        {/* Display players: brPlayers for BR mode, queue for 1v1 */}
+                        {isBR ? (
+                            // Battle Royale - show brPlayers
+                            gameState.brPlayers && gameState.brPlayers.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    {gameState.brPlayers.map((p, i) => (
+                                        <div
+                                            key={i}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: '0.75rem 1rem',
+                                                background: 'var(--bg-card)',
+                                                borderRadius: '12px',
+                                                border: '1px solid var(--border-color)'
+                                            }}
+                                        >
                                             <span style={{
                                                 background: 'var(--pink-accent)',
                                                 color: 'white',
@@ -1362,47 +1696,104 @@ export default function SudokuPage() {
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
                                                 fontSize: '0.85rem',
-                                                fontWeight: 600
+                                                fontWeight: 600,
+                                                marginRight: '0.75rem'
                                             }}>
                                                 {i + 1}
                                             </span>
-                                            <span style={{ fontWeight: 500 }}>{q.username}</span>
+                                            <span style={{ fontWeight: 500 }}>{p.username}</span>
                                         </div>
-                                        {user.isAuthorized && (
-                                            <button
-                                                onClick={() => handlePickUser(q.username)}
-                                                disabled={loading}
-                                                style={{
+                                    ))}
+                                </div>
+                            ) : (
+                                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                    En attente de joueurs...
+                                </p>
+                            )
+                        ) : (
+                            // 1v1 - show queue
+                            gameState.queue && gameState.queue.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    {gameState.queue.map((q, i) => (
+                                        <div
+                                            key={i}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                padding: '0.75rem 1rem',
+                                                background: 'var(--bg-card)',
+                                                borderRadius: '12px',
+                                                border: '1px solid var(--border-color)'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <span style={{
                                                     background: 'var(--pink-accent)',
                                                     color: 'white',
-                                                    border: 'none',
-                                                    padding: '0.4rem 0.8rem',
-                                                    borderRadius: '8px',
-                                                    cursor: 'pointer',
-                                                    fontSize: '0.8rem',
-                                                    fontWeight: 500,
-                                                    transition: 'opacity 0.2s'
-                                                }}
-                                            >
-                                                Choisir
-                                            </button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                En attente de challengers...
-                            </p>
+                                                    width: '28px',
+                                                    height: '28px',
+                                                    borderRadius: '50%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '0.85rem',
+                                                    fontWeight: 600
+                                                }}>
+                                                    {i + 1}
+                                                </span>
+                                                <span style={{ fontWeight: 500 }}>{q.username}</span>
+                                            </div>
+                                            {gameState.host?.username?.toLowerCase() === user.username.toLowerCase() && (
+                                                <button
+                                                    onClick={() => handlePickUser(q.username)}
+                                                    disabled={loading}
+                                                    style={{
+                                                        background: 'var(--pink-accent)',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        padding: '0.4rem 0.8rem',
+                                                        borderRadius: '8px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 500,
+                                                        transition: 'opacity 0.2s'
+                                                    }}
+                                                >
+                                                    Choisir
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                    En attente de challengers...
+                                </p>
+                            )
                         )}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center' }}>
-                        {user.isAuthorized ? (
+                        {gameState.host?.username?.toLowerCase() === user.username.toLowerCase() ? (
                             <>
-                                <FancyButton size="sm" onClick={handlePickRandom} disabled={loading || !gameState.queue?.length}>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><DiceIcon /> Choisir au hasard</span>
-                                </FancyButton>
+                                {isBR ? (
+                                    // BR mode: Start button (min 2 players)
+                                    <FancyButton
+                                        size="sm"
+                                        onClick={handleStartBR}
+                                        disabled={loading || (gameState.brPlayers?.length || 0) < 2}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <PlayIcon size={16} /> Lancer la partie ({gameState.brPlayers?.length || 1} joueurs)
+                                        </span>
+                                    </FancyButton>
+                                ) : (
+                                    // 1v1 mode: Pick random
+                                    <FancyButton size="sm" onClick={handlePickRandom} disabled={loading || !gameState.queue?.length}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><DiceIcon /> Choisir au hasard</span>
+                                    </FancyButton>
+                                )}
                                 <button
                                     onClick={handleCancelGame}
                                     disabled={loading}
@@ -1420,9 +1811,32 @@ export default function SudokuPage() {
                                 </button>
                             </>
                         ) : (
-                            <FancyButton size="sm" onClick={handleJoinQueue} disabled={loading}>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><GamepadIcon /> {loading ? 'Chargement...' : 'Rejoindre la file'}</span>
-                            </FancyButton>
+                            // Non-host
+                            isBR ? (
+                                // BR: user is already registered, show unregister button
+                                <button
+                                    onClick={handleUnregisterBR}
+                                    disabled={loading}
+                                    style={{
+                                        background: 'transparent',
+                                        border: '1px solid var(--text-muted)',
+                                        color: 'var(--text-muted)',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.85rem'
+                                    }}
+                                >
+                                    {loading ? 'Chargement...' : 'Se désinscrire'}
+                                </button>
+                            ) : (
+                                // 1v1: show join queue button
+                                <FancyButton size="sm" onClick={handleJoinQueue} disabled={loading}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <GamepadIcon /> {loading ? 'Chargement...' : 'Rejoindre la file'}
+                                    </span>
+                                </FancyButton>
+                            )
                         )}
                     </div>
 
@@ -1433,21 +1847,160 @@ export default function SudokuPage() {
     }
 
     // Victory screen for 1v1 finished games
-    if (gameState.status === 'finished' && (gameState.host || gameState.challenger)) {
+    if (gameState.status === 'finished' && (gameState.host || gameState.challenger) && !gameState.isBattleRoyale) {
         return renderVictoryScreen()
     }
 
-    // Playing/Finished state - grid view (solo or still playing 1v1)
+    // BR Game Finished Screen - show rankings
+    if (brGameFinished || (gameState.isBattleRoyale && gameState.status === 'finished')) {
+        // Sort players: finished by rank first, then eliminated, then playing
+        const sortedPlayers = [...brPlayers].sort((a, b) => {
+            if (a.status === 'finished' && b.status === 'finished') {
+                return (a.finishRank || 999) - (b.finishRank || 999)
+            }
+            if (a.status === 'finished') return -1
+            if (b.status === 'finished') return 1
+            if (a.status === 'eliminated' && b.status === 'eliminated') {
+                return (b.cellsFilled || 0) - (a.cellsFilled || 0)
+            }
+            return (b.cellsFilled || 0) - (a.cellsFilled || 0)
+        })
+
+        return (
+            <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center' }}>
+                <div className="glass-card" style={{ padding: '2rem', maxWidth: '600px', width: '100%' }}>
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '1.5rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        <TrophyIcon size={32} /> Battle Royale Terminé
+                    </h1>
+
+                    {brWinner && (
+                        <div style={{
+                            background: 'linear-gradient(135deg, #ffd700 0%, #ff8c00 100%)',
+                            borderRadius: '12px',
+                            padding: '1.5rem',
+                            textAlign: 'center',
+                            marginBottom: '1.5rem'
+                        }}>
+                            <p style={{ color: 'white', fontSize: '1.25rem', fontWeight: 600 }}>
+                                🏆 {brWinner} a gagné !
+                            </p>
+                        </div>
+                    )}
+
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Classement Final</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {sortedPlayers.map((p, i) => (
+                            <div
+                                key={p.playerId}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    padding: '0.75rem 1rem',
+                                    background: p.username?.toLowerCase() === user.username.toLowerCase()
+                                        ? 'var(--pink-accent)'
+                                        : i === 0 && p.status === 'finished'
+                                            ? 'linear-gradient(135deg, #ffd700 0%, #ff8c00 100%)'
+                                            : p.status === 'eliminated'
+                                                ? 'rgba(255,0,0,0.1)'
+                                                : 'var(--bg-card)',
+                                    borderRadius: '10px',
+                                    color: p.username?.toLowerCase() === user.username.toLowerCase() || (i === 0 && p.status === 'finished') ? 'white' : 'inherit'
+                                }}
+                            >
+                                <span style={{ fontWeight: 700, width: '40px', fontSize: '1rem' }}>
+                                    {p.status === 'finished' ? `#${p.finishRank}` : '-'}
+                                </span>
+                                <span style={{ flex: 1, fontWeight: 600, fontSize: '1rem' }}>
+                                    {p.username}
+                                </span>
+                                <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>
+                                    {p.status === 'finished'
+                                        ? formatTime(p.finishTime || 0)
+                                        : p.status === 'eliminated'
+                                            ? '❌ Éliminé'
+                                            : 'En cours'}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem' }}>
+                        <FancyButton size="sm" onClick={() => {
+                            setGameState({ status: 'idle' })
+                            setBrGameFinished(false)
+                            setBrWinner(null)
+                            setBrPlayers([])
+                            setHasBRFinished(false)
+                            setIsEliminated(false)
+                            setMyBRRank(null)
+                            gameInitializedRef.current = false
+                        }}>
+                            Nouvelle partie
+                        </FancyButton>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    // Playing/Finished state - grid view (solo or still playing 1v1/BR)
+    const isBRPlaying = gameState.isBattleRoyale && gameState.status === 'playing'
+
     return (
-        <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center', gap: '2rem', flexWrap: 'wrap' }}>
             <div className="glass-card" style={{ padding: '2rem', maxWidth: '700px', width: '100%' }}>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem', textAlign: 'center' }}>
-                    {gameState.challenger ? `${gameState.host?.username} vs ${gameState.challenger?.username}` : 'Sudoku Solo'}
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    {gameState.isBattleRoyale ? (
+                        <><CrownIcon size={24} /> Battle Royale</>
+                    ) : gameState.challenger ? (
+                        `${gameState.host?.username} vs ${gameState.challenger?.username}`
+                    ) : (
+                        'Sudoku Solo'
+                    )}
                 </h1>
+
+                {/* BR Eliminated overlay */}
+                {isBRPlaying && isEliminated && (
+                    <div style={{
+                        background: 'rgba(0,0,0,0.8)',
+                        borderRadius: '12px',
+                        padding: '2rem',
+                        textAlign: 'center',
+                        marginBottom: '1rem'
+                    }}>
+                        <h2 style={{ fontSize: '1.5rem', color: 'var(--pink-accent)', marginBottom: '0.5rem' }}>
+                            Éliminé !
+                        </h2>
+                        <p style={{ color: 'var(--text-muted)' }}>
+                            Tu as fait 3 erreurs. La partie continue pour les autres joueurs.
+                        </p>
+                    </div>
+                )}
+
+                {/* BR Finished overlay */}
+                {isBRPlaying && hasBRFinished && (
+                    <div style={{
+                        background: myBRRank === 1 ? 'linear-gradient(135deg, #ffd700 0%, #ff8c00 100%)' : 'rgba(0,150,0,0.8)',
+                        borderRadius: '12px',
+                        padding: '2rem',
+                        textAlign: 'center',
+                        marginBottom: '1rem'
+                    }}>
+                        <h2 style={{ fontSize: '1.5rem', color: 'white', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                            {myBRRank === 1 ? <><TrophyIcon size={28} /> Victoire !</> : `Terminé #${myBRRank}`}
+                        </h2>
+                        <p style={{ color: 'rgba(255,255,255,0.9)' }}>
+                            {myBRRank === 1
+                                ? 'Tu as terminé le puzzle en premier !'
+                                : `Tu as terminé le puzzle en position ${myBRRank}.`
+                            }
+                        </p>
+                    </div>
+                )}
 
                 {renderGameControls()}
                 {renderGrid()}
-                {gameState.status === 'playing' && renderNumberPad()}
+                {gameState.status === 'playing' && !isEliminated && !hasBRFinished && renderNumberPad()}
 
                 {message && <p style={{ textAlign: 'center', color: 'var(--pink-accent)', fontWeight: 600, marginTop: '1rem' }}>{message}</p>}
 
@@ -1459,8 +2012,8 @@ export default function SudokuPage() {
                     </div>
                 )}
 
-                {/* Cancel button during playing */}
-                {gameState.status === 'playing' && (
+                {/* Cancel button during playing (not for BR - BR has its own buttons) */}
+                {gameState.status === 'playing' && !isBRPlaying && (
                     <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
                         <button
                             onClick={() => {
@@ -1495,10 +2048,123 @@ export default function SudokuPage() {
                         </button>
                     </div>
                 )}
+
+                {/* BR: Cancel (host) or Unregister (others) button */}
+                {isBRPlaying && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+                        {gameState.host?.username?.toLowerCase() === user.username.toLowerCase() ? (
+                            <button
+                                onClick={handleCancelGame}
+                                disabled={loading}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--text-muted)',
+                                    color: 'var(--text-muted)',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.85rem'
+                                }}
+                            >
+                                Annuler le Battle Royale
+                            </button>
+                        ) : !isEliminated && (
+                            <button
+                                onClick={handleUnregisterBR}
+                                disabled={loading}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--text-muted)',
+                                    color: 'var(--text-muted)',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '0.85rem'
+                                }}
+                            >
+                                Abandonner
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
+            {/* BR Leaderboard sidebar */}
+            {isBRPlaying && brPlayers.length > 0 && (
+                <div className="glass-card" style={{ padding: '1.5rem', width: '280px', alignSelf: 'flex-start' }}>
+                    <h3 style={{
+                        fontSize: '1rem',
+                        fontWeight: 600,
+                        marginBottom: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                    }}>
+                        <CrownIcon size={18} /> Classement
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {(() => {
+                            // Calculate how many cells need to be filled (empty in original puzzle)
+                            const cellsToFill = gameState.puzzle
+                                ? gameState.puzzle.split('').filter(c => c === '0').length
+                                : 45 // Default assumption if puzzle not available
+
+                            // Pre-filled cells = 81 - empty cells
+                            const prefilledCells = 81 - cellsToFill
+
+                            return brPlayers.slice(0, 10).map((p, i) => {
+                                // cellsFilled from API includes pre-filled cells, subtract them
+                                const userFilledCells = Math.max(0, p.cellsFilled - prefilledCells)
+                                const percentage = cellsToFill > 0
+                                    ? Math.min(100, Math.round((userFilledCells / cellsToFill) * 100))
+                                    : 0
+
+                                return (
+                                    <div
+                                        key={p.playerId}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            padding: '0.5rem 0.75rem',
+                                            background: p.username?.toLowerCase() === user.username.toLowerCase()
+                                                ? 'var(--pink-accent)'
+                                                : p.status === 'eliminated'
+                                                    ? 'rgba(255,0,0,0.1)'
+                                                    : 'var(--bg-card)',
+                                            borderRadius: '8px',
+                                            opacity: p.status === 'eliminated' ? 0.6 : 1,
+                                            color: p.username?.toLowerCase() === user.username.toLowerCase() ? 'white' : 'inherit'
+                                        }}
+                                    >
+                                        <span style={{
+                                            fontWeight: 700,
+                                            width: '24px',
+                                            fontSize: '0.85rem'
+                                        }}>
+                                            {i + 1}.
+                                        </span>
+                                        <span style={{ flex: 1, fontWeight: 500, fontSize: '0.9rem' }}>
+                                            {p.username}
+                                        </span>
+                                        <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>
+                                            {percentage}%
+                                        </span>
+                                        {p.status === 'eliminated' && (
+                                            <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', color: '#ff6b6b' }}>✗</span>
+                                        )}
+                                    </div>
+                                )
+                            })
+                        })()}
+                    </div>
+                    <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                        {brPlayers.filter(p => p.status === 'playing').length} joueurs restants
+                    </div>
+                </div>
+            )}
+
             {/* Opponent's mini grid for 1v1 */}
-            {renderOpponentGrid()}
+            {!gameState.isBattleRoyale && renderOpponentGrid()}
         </div>
     )
 }
