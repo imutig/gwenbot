@@ -227,33 +227,49 @@ export default function SudokuPage() {
                 if (data.game.puzzle && data.game.status === 'playing') {
                     const puzzleArray = data.game.puzzle.split('').map(Number)
 
-                    // Only set grid if not already initialized (don't overwrite user's progress)
-                    if (!gameInitializedRef.current) {
-                        setGrid(puzzleArray)
-                        setOriginalPuzzle(puzzleArray)
-                        // Start timer when game starts
-                        setTimer(0)
-                        setIsTimerRunning(true)
-                        gameInitializedRef.current = true
-                    }
-
-                    // Set opponent progress for 1v1
+                    // Check if user is a participant in this 1v1
                     const isHost = data.game.host?.username?.toLowerCase() === user.username.toLowerCase()
-                    console.log('[Sudoku] isHost:', isHost, 'user:', user.username, 'host:', data.game.host?.username)
-                    console.log('[Sudoku] hostProgress:', data.game.hostProgress, 'challengerProgress:', data.game.challengerProgress)
+                    const isChallenger = data.game.challenger?.username?.toLowerCase() === user.username.toLowerCase()
+                    const isParticipant = isHost || isChallenger
 
-                    if (isHost) {
-                        // I'm host, show challenger's progress
-                        if (data.game.challengerProgress) {
-                            setOpponentProgress(data.game.challengerProgress)
+                    console.log('[Sudoku] Participant check:', { isHost, isChallenger, isParticipant, user: user.username })
+
+                    // Only initialize grid for participants
+                    if (isParticipant) {
+                        // Only set grid if not already initialized (don't overwrite user's progress)
+                        if (!gameInitializedRef.current) {
+                            setGrid(puzzleArray)
+                            setOriginalPuzzle(puzzleArray)
+                            // Start timer when game starts
+                            setTimer(0)
+                            setIsTimerRunning(true)
+                            gameInitializedRef.current = true
                         }
-                        setOpponentUsername(data.game.challenger?.username || 'Adversaire')
+
+                        // Set opponent progress for 1v1
+                        console.log('[Sudoku] isHost:', isHost, 'user:', user.username, 'host:', data.game.host?.username)
+                        console.log('[Sudoku] hostProgress:', data.game.hostProgress, 'challengerProgress:', data.game.challengerProgress)
+
+                        if (isHost) {
+                            // I'm host, show challenger's progress
+                            if (data.game.challengerProgress) {
+                                setOpponentProgress(data.game.challengerProgress)
+                            }
+                            setOpponentUsername(data.game.challenger?.username || 'Adversaire')
+                        } else {
+                            // I'm challenger, show host's progress
+                            if (data.game.hostProgress) {
+                                setOpponentProgress(data.game.hostProgress)
+                            }
+                            setOpponentUsername(data.game.host?.username || 'Adversaire')
+                        }
                     } else {
-                        // I'm challenger, show host's progress
-                        if (data.game.hostProgress) {
-                            setOpponentProgress(data.game.hostProgress)
+                        // Non-participant: show a spectator message or idle state
+                        console.log('[Sudoku] User is not a participant in this 1v1')
+                        // Don't initialize the game for spectators - show waiting/idle state
+                        if (gameState.status !== 'finished') {
+                            setMessage(`Une partie 1v1 est en cours entre ${data.game.host?.username} et ${data.game.challenger?.username}`)
                         }
-                        setOpponentUsername(data.game.host?.username || 'Adversaire')
                     }
                 }
             } else {
