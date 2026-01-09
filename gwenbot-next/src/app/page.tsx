@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useState, useEffect } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import FancyButton from "@/components/ui/fancy-button"
+import SleepingDog from "@/components/sleeping-dog"
 
 interface TwitchStatus {
   isLive: boolean
@@ -198,6 +199,9 @@ export default function Home() {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Meilleurs moments</p>
         </Link>
       </section>
+
+      {/* Sleeping Dog */}
+      <SleepingDog />
     </>
   )
 }
