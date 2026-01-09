@@ -13,13 +13,13 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json()
-        const { username, progress, time_seconds } = body
+        const { username, progress, time_seconds, errors = 0, lost = false } = body
 
         if (!username || progress === undefined) {
             return NextResponse.json({ error: 'Username and progress required' }, { status: 400 })
         }
 
-        // Get active game
+        // Get active game with both host and challenger info
         const { data: game } = await supabase
             .from('sudoku_games')
             .select(`
@@ -27,7 +27,8 @@ export async function POST(request: Request) {
                 solution,
                 host_id,
                 challenger_id,
-                players!sudoku_games_host_id_fkey(username)
+                host_errors,
+                challenger_errors
             `)
             .eq('status', 'playing')
             .single()
@@ -36,21 +37,91 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'No active game' }, { status: 404 })
         }
 
-        // Determine if user is host or challenger
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const hostPlayers = (game as any).players as { username: string } | { username: string }[]
-        const hostUsername = Array.isArray(hostPlayers) ? hostPlayers[0]?.username : hostPlayers?.username
-        const isHost = hostUsername?.toLowerCase() === username.toLowerCase()
+        // Get host username
+        const { data: hostPlayer } = await supabase
+            .from('players')
+            .select('username')
+            .eq('id', game.host_id)
+            .single()
+        const hostUsername = hostPlayer?.username || ''
+        console.log('[Sudoku API] Host player:', { host_id: game.host_id, hostUsername })
 
-        // Update the correct progress field
-        const updateField = isHost ? 'host_progress' : 'challenger_progress'
+        // Get challenger username
+        const { data: challengerPlayer } = await supabase
+            .from('players')
+            .select('username')
+            .eq('id', game.challenger_id)
+            .single()
+        const challengerUsername = challengerPlayer?.username || ''
+        console.log('[Sudoku API] Challenger player:', { challenger_id: game.challenger_id, challengerUsername })
+
+        // Determine if user is host or challenger
+        const isHost = hostUsername?.toLowerCase() === username.toLowerCase()
+        console.log('[Sudoku API] User info:', { username, isHost, errors })
+
+        // Update the correct progress and error fields
+        const progressField = isHost ? 'host_progress' : 'challenger_progress'
+        const errorField = isHost ? 'host_errors' : 'challenger_errors'
+
+        const updateData: Record<string, unknown> = { [progressField]: progress }
+        if (errors > 0) {
+            updateData[errorField] = errors
+        }
 
         const { error: updateError } = await supabase
             .from('sudoku_games')
-            .update({ [updateField]: progress })
+            .update(updateData)
             .eq('id', game.id)
 
         if (updateError) throw updateError
+
+        // Check if this player lost by 3 errors
+        if (lost || errors >= 3) {
+            // Get opponent player id (the winner)
+            const winnerId = isHost ? game.challenger_id : game.host_id
+            const winnerUsername = isHost ? challengerUsername : hostUsername
+            console.log('[Sudoku API] GAME OVER by errors!', { loser: username, winner: winnerUsername, winnerId })
+
+            // Mark game as finished with opponent as winner
+            await supabase
+                .from('sudoku_games')
+                .update({
+                    status: 'finished',
+                    winner_id: winnerId,
+                    finished_at: new Date().toISOString()
+                })
+                .eq('id', game.id)
+
+            // Broadcast the update - opponent wins by errors (include winner name!)
+            await supabase.channel('sudoku-broadcast').send({
+                type: 'broadcast',
+                event: 'sudoku_update',
+                payload: {
+                    action: 'game_finished',
+                    winner: winnerUsername,
+                    loser: username,
+                    reason: 'errors'
+                }
+            })
+
+            return NextResponse.json({
+                success: true,
+                complete: false,
+                lost: true,
+                winner: winnerUsername,
+                message: `${username} a fait 3 erreurs !`
+            })
+        }
+
+        // Check if opponent has lost (3 errors)
+        const opponentErrors = isHost ? game.challenger_errors : game.host_errors
+        if (opponentErrors >= 3) {
+            return NextResponse.json({
+                success: true,
+                complete: false,
+                opponentLost: true
+            })
+        }
 
         // Check if completed (progress matches solution)
         const isComplete = progress === game.solution
@@ -94,15 +165,17 @@ export async function POST(request: Request) {
         await supabase.channel('sudoku-broadcast').send({
             type: 'broadcast',
             event: 'sudoku_update',
-            payload: { action: 'progress_update', username }
+            payload: { action: 'progress_update', username, errors }
         })
 
         return NextResponse.json({
             success: true,
-            complete: false
+            complete: false,
+            errors
         })
     } catch (error) {
         console.error('Error updating progress:', error)
         return NextResponse.json({ error: 'Failed to update progress' }, { status: 500 })
     }
 }
+

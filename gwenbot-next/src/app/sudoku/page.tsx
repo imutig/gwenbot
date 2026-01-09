@@ -104,6 +104,11 @@ export default function SudokuPage() {
     // Store official winning time for victory screen
     const [winningTime, setWinningTime] = useState<number | null>(null)
 
+    // Error tracking (3 errors = game over)
+    const [errorCount, setErrorCount] = useState(0)
+    const [opponentErrors, setOpponentErrors] = useState(0)
+    const [lossReason, setLossReason] = useState<'completed' | 'errors' | null>(null)
+
     // Flag to prevent grid reset when game is already initialized
     const gameInitializedRef = useRef(false)
 
@@ -277,11 +282,31 @@ export default function SudokuPage() {
                 // Handle game_finished: show victory screen for losing player
                 if (payload.payload?.action === 'game_finished') {
                     const winnerUsername = payload.payload.winner
-                    console.log('[Sudoku] Game finished! Winner:', winnerUsername)
+                    const loserUsername = payload.payload.loser
+                    const reason = payload.payload.reason
+
+                    console.log('[Sudoku] Game finished!', { winnerUsername, loserUsername, reason })
                     setIsTimerRunning(false)
                     setWinningTime(payload.payload.time_seconds || 0)
-                    setGameState(prev => ({ ...prev, status: 'finished', winner: { username: winnerUsername } }))
-                    setMessage(`${winnerUsername} a remporté la partie !`)
+
+                    // Handle loss by errors
+                    if (reason === 'errors' && loserUsername) {
+                        setLossReason('errors')
+                        // If I'm the loser, opponent wins
+                        if (loserUsername.toLowerCase() === user.username.toLowerCase()) {
+                            const winner = winnerUsername || opponentUsername || 'Adversaire'
+                            setGameState(prev => ({ ...prev, status: 'finished', winner: { username: winner } }))
+                            setMessage(`❌ 3 erreurs ! Vous avez perdu.`)
+                        } else {
+                            // Opponent lost by errors, I win
+                            setGameState(prev => ({ ...prev, status: 'finished', winner: { username: user.username } }))
+                            setMessage(`🎉 L'adversaire a fait 3 erreurs ! Vous gagnez !`)
+                        }
+                    } else if (winnerUsername) {
+                        setLossReason('completed')
+                        setGameState(prev => ({ ...prev, status: 'finished', winner: { username: winnerUsername } }))
+                        setMessage(`${winnerUsername} a remporté la partie !`)
+                    }
                 } else {
                     // For other broadcasts (progress_update, queue_updated, etc.), refresh status
                     checkGameStatus()
@@ -341,6 +366,8 @@ export default function SudokuPage() {
                 })
                 // Start timer and reset history
                 setTimer(0)
+                setErrorCount(0)
+                setLossReason(null)
                 setIsTimerRunning(true)
                 setHistory([{ grid: puzzleArray, selectedCell: null }])
                 setHistoryIndex(0)
@@ -360,6 +387,11 @@ export default function SudokuPage() {
             setMessage('Seuls les utilisateurs autorisés peuvent créer une session 1v1')
             return
         }
+
+        // Reset error counts for new game
+        setErrorCount(0)
+        setOpponentErrors(0)
+        setLossReason(null)
 
         setLoading(true)
         try {
@@ -383,6 +415,11 @@ export default function SudokuPage() {
     }
 
     const handleJoinQueue = async () => {
+        // Reset error counts for new game
+        setErrorCount(0)
+        setOpponentErrors(0)
+        setLossReason(null)
+
         setLoading(true)
         try {
             const res = await fetch('/api/sudoku/join', {
@@ -460,22 +497,82 @@ export default function SudokuPage() {
     }
 
     const handleNumberInput = async (num: number) => {
+        console.log('[Sudoku Debug] *** handleNumberInput called ***', { num, selectedCell, hasSolution: !!gameState.solution })
         if (selectedCell === null) return
         if (originalPuzzle[selectedCell] !== 0) return // Can't edit original cells
+        if (gameState.status === 'finished') return // Game already ended
+
+        // Check if this is an error (wrong number placed)
+        const solution = gameState.solution
+        let isError = false
+        let newErrorCount = errorCount
+
+        console.log('[Sudoku Debug] handleNumberInput - solution:', solution ? 'available' : 'MISSING', 'num:', num, 'selectedCell:', selectedCell)
+
+        if (num !== 0 && solution) {
+            const correctValue = parseInt(solution[selectedCell])
+            console.log('[Sudoku Debug] Checking error - correctValue:', correctValue, 'entered:', num, 'isError:', num !== correctValue)
+            if (num !== correctValue) {
+                isError = true
+                newErrorCount = errorCount + 1
+                setErrorCount(newErrorCount)
+                console.log('[Sudoku Debug] Error detected! newErrorCount:', newErrorCount)
+            }
+        }
 
         const newGrid = [...grid]
         newGrid[selectedCell] = num
         setGrid(newGrid)
         addToHistory(newGrid)
 
+        // Check if 3 errors reached (game over)
+        if (newErrorCount >= 3) {
+            setIsTimerRunning(false)
+            setLossReason('errors')
+
+            // For 1v1, the opponent wins
+            if ((gameState.host || gameState.challenger) && gameState.id) {
+                const opponentName = opponentUsername || 'Adversaire'
+                setGameState({ ...gameState, status: 'finished', winner: { username: opponentName } })
+                setMessage(`❌ 3 erreurs ! ${opponentName} gagne !`)
+
+                // Notify API of loss by errors
+                try {
+                    await fetch('/api/sudoku/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: user.username,
+                            progress: newGrid.join(''),
+                            time_seconds: timer,
+                            errors: newErrorCount,
+                            lost: true
+                        })
+                    })
+                } catch (err) {
+                    console.error('Error syncing loss:', err)
+                }
+            } else {
+                // Solo mode - just show game over
+                setGameState({ ...gameState, status: 'finished' })
+                setMessage(`❌ 3 erreurs ! Partie terminée.`)
+            }
+            return
+        }
+
         // Sync progress for 1v1 mode
-        if (gameState.challenger && gameState.id) {
+        if ((gameState.host || gameState.challenger) && gameState.id) {
             const progressString = newGrid.join('')
             try {
                 const res = await fetch('/api/sudoku/update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: user.username, progress: progressString, time_seconds: timer })
+                    body: JSON.stringify({
+                        username: user.username,
+                        progress: progressString,
+                        time_seconds: timer,
+                        errors: newErrorCount
+                    })
                 })
                 const data = await res.json()
 
@@ -483,9 +580,19 @@ export default function SudokuPage() {
                 if (data.complete) {
                     setIsTimerRunning(false)
                     setWinningTime(data.time_seconds || timer)
+                    setLossReason('completed')
                     setGameState({ ...gameState, status: 'finished', winner: { username: data.winner } })
                     setMessage(`Victoire ! ${data.winner} a gagné !`)
                     return // Don't run checkCompletion, we already handled it
+                }
+
+                // If opponent lost by errors
+                if (data.opponentLost) {
+                    setIsTimerRunning(false)
+                    setLossReason('errors')
+                    setGameState({ ...gameState, status: 'finished', winner: { username: user.username } })
+                    setMessage(`🎉 L'adversaire a fait 3 erreurs ! Vous gagnez !`)
+                    return
                 }
             } catch (err) {
                 console.error('Error syncing progress:', err)
@@ -688,7 +795,7 @@ export default function SudokuPage() {
     // Render opponent's mini grid (1v1 mode only)
     const renderOpponentGrid = () => {
         // Check if it's a 1v1 game by looking for challenger, not the mode state variable
-        if (!opponentProgress || !gameState.challenger || gameState.status !== 'playing') return null
+        if (!opponentProgress || (!gameState.host && !gameState.challenger) || gameState.status !== 'playing') return null
 
         const opponentGrid = opponentProgress.split('').map(Number)
         const puzzleGrid = originalPuzzle.length > 0 ? originalPuzzle : Array(81).fill(0)
@@ -759,7 +866,7 @@ export default function SudokuPage() {
 
     // Render victory screen for 1v1 finished games
     const renderVictoryScreen = () => {
-        if (gameState.status !== 'finished' || !gameState.challenger) return null
+        if (gameState.status !== 'finished' || (!gameState.host && !gameState.challenger)) return null
 
         const isWinner = gameState.winner?.username?.toLowerCase() === user.username.toLowerCase()
         const winnerName = gameState.winner?.username || 'Inconnu'
@@ -828,6 +935,9 @@ export default function SudokuPage() {
             // Reset states and create new game
             setGameState({ status: 'idle' })
             setTimer(0)
+            setErrorCount(0)
+            setOpponentErrors(0)
+            setLossReason(null)
             setHistory([])
             setHistoryIndex(-1)
             setGrid(Array(81).fill(0))
@@ -845,6 +955,9 @@ export default function SudokuPage() {
         const handleExit = () => {
             setGameState({ status: 'idle' })
             setTimer(0)
+            setErrorCount(0)
+            setOpponentErrors(0)
+            setLossReason(null)
             setHistory([])
             setHistoryIndex(-1)
             setGrid(Array(81).fill(0))
@@ -868,31 +981,48 @@ export default function SudokuPage() {
                     width: '100%',
                     textAlign: 'center'
                 }}>
-                    {/* Trophy animation */}
+                    {/* Trophy or X animation based on result */}
                     <div style={{
                         animation: 'pulse 2s ease-in-out infinite',
-                        color: 'var(--pink-accent)',
+                        color: isWinner ? 'var(--pink-accent)' : '#ef4444',
                         marginBottom: '1rem',
                         display: 'flex',
                         justifyContent: 'center'
                     }}>
-                        <TrophyIcon size={64} />
+                        {isWinner ? (
+                            <TrophyIcon size={64} />
+                        ) : (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '64px', height: '64px' }}>
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="15" y1="9" x2="9" y2="15" />
+                                <line x1="9" y1="9" x2="15" y2="15" />
+                            </svg>
+                        )}
                     </div>
 
                     <h1 style={{
                         fontSize: '2rem',
                         fontWeight: 700,
                         marginBottom: '0.5rem',
-                        background: 'linear-gradient(135deg, var(--pink-accent), var(--pink-light))',
+                        background: isWinner
+                            ? 'linear-gradient(135deg, var(--pink-accent), var(--pink-light))'
+                            : 'linear-gradient(135deg, #ef4444, #f87171)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent'
                     }}>
-                        Victoire !
+                        {isWinner ? 'Victoire !' : 'Défaite'}
                     </h1>
 
-                    <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '2rem' }}>
-                        <strong style={{ color: 'var(--pink-accent)' }}>{winnerName}</strong> a remporté la partie !
+                    <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                        <strong style={{ color: isWinner ? 'var(--pink-accent)' : '#ef4444' }}>{winnerName}</strong> a remporté la partie !
                     </p>
+
+                    {/* Show loss reason if applicable */}
+                    {lossReason === 'errors' && (
+                        <p style={{ fontSize: '0.9rem', color: '#f97316', marginBottom: '1.5rem' }}>
+                            {isWinner ? `L'adversaire a fait 3 erreurs` : `Vous avez fait 3 erreurs`}
+                        </p>
+                    )}
 
                     {/* Grid comparison */}
                     <div style={{
@@ -956,45 +1086,68 @@ export default function SudokuPage() {
     }
 
     // Render number pad
-    const renderNumberPad = () => (
-        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+    const renderNumberPad = () => {
+        // Count how many times each digit appears in the grid
+        const digitCounts: Record<number, number> = {}
+        for (let i = 1; i <= 9; i++) digitCounts[i] = 0
+        for (const value of grid) {
+            if (value >= 1 && value <= 9) {
+                digitCounts[value]++
+            }
+        }
+
+        return (
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => {
+                    const isComplete = digitCounts[num] >= 9
+                    return (
+                        <button
+                            key={num}
+                            onClick={() => handleNumberInput(num)}
+                            disabled={isComplete}
+                            style={{
+                                width: '48px',
+                                height: '48px',
+                                borderRadius: '10px',
+                                border: '1px solid var(--border-color)',
+                                background: isComplete ? 'var(--bg-input)' : 'var(--bg-card)',
+                                color: isComplete ? 'var(--text-success, #10b981)' : 'var(--text-primary)',
+                                fontSize: '1.2rem',
+                                fontWeight: 600,
+                                cursor: isComplete ? 'default' : 'pointer',
+                                opacity: isComplete ? 0.7 : 1,
+                                transition: 'all 0.15s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            {isComplete ? (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ width: '20px', height: '20px' }}>
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            ) : num}
+                        </button>
+                    )
+                })}
                 <button
-                    key={num}
-                    onClick={() => handleNumberInput(num)}
+                    onClick={() => handleNumberInput(0)}
                     style={{
                         width: '48px',
                         height: '48px',
                         borderRadius: '10px',
                         border: '1px solid var(--border-color)',
-                        background: 'var(--bg-card)',
-                        color: 'var(--text-primary)',
-                        fontSize: '1.2rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s'
+                        background: 'var(--bg-input)',
+                        color: 'var(--text-muted)',
+                        fontSize: '1rem',
+                        cursor: 'pointer'
                     }}
                 >
-                    {num}
+                    ✕
                 </button>
-            ))}
-            <button
-                onClick={() => handleNumberInput(0)}
-                style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--bg-input)',
-                    color: 'var(--text-muted)',
-                    fontSize: '1rem',
-                    cursor: 'pointer'
-                }}
-            >
-                ✕
-            </button>
-        </div>
-    )
+            </div>
+        )
+    }
 
     // Render game controls (timer, progress, undo/redo)
     const renderGameControls = () => {
@@ -1007,6 +1160,17 @@ export default function SudokuPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '24px', height: '24px' }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
                         <span style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'monospace' }}>{formatTime(timer)}</span>
+                        <span style={{
+                            marginLeft: '0.75rem',
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                            color: errorCount >= 2 ? '#ef4444' : errorCount >= 1 ? '#f97316' : 'var(--text-muted)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem'
+                        }}>
+                            ❌ {errorCount}/3
+                        </span>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button
@@ -1253,7 +1417,7 @@ export default function SudokuPage() {
     }
 
     // Victory screen for 1v1 finished games
-    if (gameState.status === 'finished' && gameState.challenger) {
+    if (gameState.status === 'finished' && (gameState.host || gameState.challenger)) {
         return renderVictoryScreen()
     }
 
