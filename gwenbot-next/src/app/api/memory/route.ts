@@ -4,15 +4,26 @@ import { NextResponse } from 'next/server'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-// Available emotes for cards
-const EMOTES = [
-    'xsgwenHug',
-    'xsgwenHype',
-    'xsgwenLol',
-    'xsgwenLove',
-    'xsgwenOuin',
-    'xsgwenSip',
-    'xsgwenWow'
+// Available icons for cards (SVG icons)
+const ICONS = [
+    'cat',
+    'pawprint',
+    'dog',
+    'bone',
+    'heart',
+    'flame',
+    'instagram',
+    'hamburger',
+    'gift',
+    'candy',
+    'twitch',
+    'helicopter',
+    'star',
+    'sun',
+    'zap',
+    'umbrella',
+    'car',
+    'plane'
 ]
 
 // Shuffle array
@@ -28,13 +39,13 @@ function shuffle<T>(array: T[]): T[] {
 // Generate cards for a game
 function generateCards(difficulty: 'easy' | 'hard'): string[] {
     const pairCount = difficulty === 'easy' ? 8 : 18
-    // Select emotes, repeating if needed
-    const selectedEmotes: string[] = []
+    // Select icons, repeating if needed
+    const selectedIcons: string[] = []
     for (let i = 0; i < pairCount; i++) {
-        selectedEmotes.push(EMOTES[i % EMOTES.length])
+        selectedIcons.push(ICONS[i % ICONS.length])
     }
     // Create pairs
-    const cards = [...selectedEmotes, ...selectedEmotes]
+    const cards = [...selectedIcons, ...selectedIcons]
     return shuffle(cards)
 }
 

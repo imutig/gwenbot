@@ -1,0 +1,265 @@
+.memoryContainer {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.modeCard {
+    padding: 2rem;
+    border-radius: 16px;
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.modeCard:hover {
+    border-color: var(--pink-accent);
+    transform: translateY(-4px);
+}
+
+.modeCard.selected {
+    border-color: var(--pink-main);
+    background: rgba(236, 72, 153, 0.1);
+}
+
+.cardGrid {
+    display: grid;
+    gap: 8px;
+    justify-content: center;
+}
+
+.cardGrid.easy {
+    grid-template-columns: repeat(4, 100px);
+}
+
+.cardGrid.hard {
+    grid-template-columns: repeat(6, 85px);
+}
+
+.memoryCard {
+    aspect-ratio: 1;
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.4s ease;
+}
+
+.memoryCard.flipped {
+    transform: rotateY(180deg);
+}
+
+.memoryCard.matched {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.cardFace {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    backface-visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cardBack {
+    background: linear-gradient(135deg, var(--pink-main), var(--pink-accent));
+    border: 2px solid var(--pink-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cardBack svg {
+    width: 32px;
+    height: 32px;
+    color: white;
+    opacity: 0.5;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.cardFront {
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    transform: rotateY(180deg);
+    padding: 8px;
+}
+
+.cardFront svg {
+    width: 100%;
+    height: 100%;
+}
+
+.scoreBar {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-radius: 12px;
+    margin-bottom: 1rem;
+}
+
+.playerScore {
+    text-align: center;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+}
+
+.playerScore.active {
+    background: var(--pink-accent);
+    color: white;
+}
+
+.lobbyCard {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-radius: 12px;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.victoryOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.victoryModal {
+    background: #fce4ec;
+    padding: 3rem 4rem;
+    border-radius: 24px;
+    text-align: center;
+    max-width: 420px;
+    border: 2px solid var(--pink-accent);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    animation: scaleIn 0.4s ease;
+}
+
+.victoryTrophy {
+    display: inline-block;
+    animation: float 2s ease-in-out infinite;
+    filter: drop-shadow(0 4px 12px rgba(236, 72, 153, 0.4));
+}
+
+.victoryTitle {
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--pink-main), var(--pink-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+}
+
+.victoryStats {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: rgba(236, 72, 153, 0.1);
+    border-radius: 12px;
+}
+
+.victoryStat {
+    text-align: center;
+}
+
+.victoryStatValue {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--pink-accent);
+}
+
+.victoryStatLabel {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--pink-accent);
+    animation: confettiFall 3s linear infinite;
+}
+
+@keyframes confettiFall {
+    0% {
+        transform: translateY(-100px) rotate(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(400px) rotate(720deg);
+        opacity: 0;
+    }
+}
+
+.difficultyBtn {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 2px solid var(--border-color);
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+}
+
+.difficultyBtn.selected {
+    border-color: var(--pink-main);
+    background: var(--pink-main);
+    color: white;
+}

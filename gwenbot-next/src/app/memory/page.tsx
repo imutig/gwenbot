@@ -2,78 +2,16 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import Image from 'next/image'
 import FancyButton from '@/components/ui/fancy-button'
 import { useToast } from '@/components/toast-context'
+import type { MemoryMode, MemoryDifficulty, MemoryGame, MemoryLobby, MemoryPlayer } from '@/types/memory'
+import { GamepadIcon, SwordsIcon, TrophyIcon, RefreshIcon, CARD_ICONS } from '@/components/games/memory/MemoryIcons'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null
 
-// SVG Icons
-const GamepadIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px' }}>
-        <rect width="20" height="12" x="2" y="6" rx="2" />
-        <path d="M6 12h4M8 10v4M15 13h.01M18 11h.01" />
-    </svg>
-)
-
-const SwordsIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px' }}>
-        <path d="M14 10l6-6M20 4l-2 2M22 2l-6 6M2 22l6-6M4 20l2-2M8 16l-6 6" />
-        <path d="m21.29 13.7-5.59-5.59-9 9 5.59 5.59a2 2 0 0 0 2.83 0l6.17-6.17a2 2 0 0 0 0-2.83Z" />
-        <path d="m2.71 10.3 5.59 5.59 9-9-5.59-5.59a2 2 0 0 0-2.83 0L2.71 7.47a2 2 0 0 0 0 2.83Z" />
-    </svg>
-)
-
-const TrophyIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '48px', height: '48px' }}>
-        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-        <path d="M4 22h16" />
-        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
-        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
-        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-    </svg>
-)
-
-const RefreshIcon = () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}>
-        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-        <path d="M21 3v5h-5" />
-        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-        <path d="M8 16H3v5" />
-    </svg>
-)
-
-type Mode = 'menu' | 'solo' | '1v1' | 'lobby'
-type Difficulty = 'easy' | 'hard'
-type GameStatus = 'waiting' | 'playing' | 'finished'
-
-interface Game {
-    id: number
-    mode: string
-    difficulty: Difficulty
-    status: GameStatus
-    cards: string[]
-    matched: number[]
-    host_pairs: number
-    challenger_pairs: number
-    current_turn: 'host' | 'challenger'
-    moves: number
-    start_time: string | null
-    end_time: string | null
-    host?: { id: number; username: string }
-    challenger?: { id: number; username: string }
-    winner?: { id: number; username: string }
-}
-
-interface Lobby {
-    id: number
-    difficulty: Difficulty
-    host: { id: number; username: string }
-    created_at: string
-}
+// Icons imported from @/components/games/memory/MemoryIcons
 
 const styles = `
     .memory-container {
@@ -105,8 +43,8 @@ const styles = `
         gap: 8px;
         justify-content: center;
     }
-    .card-grid.easy { grid-template-columns: repeat(4, 80px); }
-    .card-grid.hard { grid-template-columns: repeat(6, 70px); }
+    .card-grid.easy { grid-template-columns: repeat(4, 100px); }
+    .card-grid.hard { grid-template-columns: repeat(6, 85px); }
     .memory-card {
         aspect-ratio: 1;
         border-radius: 12px;
@@ -154,10 +92,9 @@ const styles = `
         transform: rotateY(180deg);
         padding: 8px;
     }
-    .card-front img {
+    .card-front svg {
         width: 100%;
         height: 100%;
-        object-fit: contain;
     }
     .score-bar {
         display: flex;
@@ -283,11 +220,11 @@ const styles = `
 
 export default function MemoryPage() {
     const { showToast } = useToast()
-    const [mode, setMode] = useState<Mode>('menu')
-    const [difficulty, setDifficulty] = useState<Difficulty>('easy')
-    const [game, setGame] = useState<Game | null>(null)
-    const [lobbies, setLobbies] = useState<Lobby[]>([])
-    const [user, setUser] = useState<{ id: number; username: string } | null>(null)
+    const [mode, setMode] = useState<MemoryMode>('menu')
+    const [difficulty, setDifficulty] = useState<MemoryDifficulty>('easy')
+    const [game, setGame] = useState<MemoryGame | null>(null)
+    const [lobbies, setLobbies] = useState<MemoryLobby[]>([])
+    const [user, setUser] = useState<MemoryPlayer | null>(null)
     const [loading, setLoading] = useState(false)
     const [flippedCards, setFlippedCards] = useState<number[]>([])
     const [processing, setProcessing] = useState(false)
@@ -699,7 +636,7 @@ export default function MemoryPage() {
                 {/* Waiting for opponent */}
                 {game.status === 'waiting' && (
                     <div style={{ textAlign: 'center', padding: '2rem', marginBottom: '1rem', background: 'var(--bg-card)', borderRadius: '12px' }}>
-                        <p>En attente d un adversaire...</p>
+                        <p>En attente d'un adversaire...</p>
                         <FancyButton size="sm" onClick={handlePlayAgain}>
                             Annuler
                         </FancyButton>
@@ -732,12 +669,12 @@ export default function MemoryPage() {
                                         </svg>
                                     </div>
                                     <div className="card-face card-front">
-                                        {game.cards[index] && (
-                                            <img
-                                                src={`/emotes/${game.cards[index]}.png`}
-                                                alt={game.cards[index]}
-                                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                            />
+                                        {game.cards[index] && CARD_ICONS[game.cards[index]] && (
+                                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: CARD_ICONS[game.cards[index]].color }}>
+                                                <div style={{ width: '60%', height: '60%' }}>
+                                                    {CARD_ICONS[game.cards[index]].svg}
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

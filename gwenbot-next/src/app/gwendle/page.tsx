@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { getDailyWord, isValidWord, checkGuess, generateShareText } from '@/lib/gwendle-words'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { getDailyWord, isValidWord, checkGuess, generateShareText, WordLength } from '@/lib/gwendle-words'
 import { useToast } from '@/components/toast-context'
 
 const MAX_ATTEMPTS = 8
-const WORD_LENGTH = 5
 
 const KEYBOARD_ROWS = [
     ['A', 'Z', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
@@ -20,9 +19,10 @@ interface GameData {
     dayNumber: number
     guesses: string[]
     gameState: GameState
+    wordLength: number
 }
 
-const styles = `
+const getStyles = (wordLength: number) => `
     .gwendle-container {
         max-width: 500px;
         margin: 0 auto;
@@ -31,6 +31,29 @@ const styles = `
         align-items: center;
         gap: 1.5rem;
     }
+    .mode-selector {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        background: var(--bg-card);
+        padding: 4px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+    .mode-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 600;
+    }
+    .mode-btn.active {
+        background: var(--pink-main);
+        color: white;
+    }
     .game-grid {
         display: grid;
         grid-template-rows: repeat(8, 1fr);
@@ -38,18 +61,18 @@ const styles = `
     }
     .row {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(${wordLength}, 1fr);
         gap: 6px;
     }
     .cell {
-        width: 56px;
-        height: 56px;
+        width: ${wordLength === 7 ? '42px' : '56px'};
+        height: ${wordLength === 7 ? '42px' : '56px'};
         border: 2px solid var(--border-color);
         border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.75rem;
+        font-size: ${wordLength === 7 ? '1.4rem' : '1.75rem'};
         font-weight: bold;
         text-transform: uppercase;
         transition: all 0.15s ease;
@@ -86,8 +109,8 @@ const styles = `
         gap: 6px;
     }
     .key {
-        min-width: 36px;
-        height: 52px;
+        min-width: 30px;
+        height: 48px;
         border-radius: 6px;
         border: none;
         background: var(--bg-card);
@@ -98,210 +121,325 @@ const styles = `
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.1s ease;
+        flex: 1;
+        transition: all 0.1s;
+        text-transform: uppercase;
+        user-select: none;
     }
-    .key:hover {
-        filter: brightness(1.1);
-    }
-    .key.wide {
-        min-width: 60px;
-        font-size: 0.75rem;
+    .key:active {
+        transform: scale(0.95);
     }
     .key.correct { background: #22c55e; color: white; }
     .key.present { background: #eab308; color: white; }
     .key.absent { background: #374151; color: #9ca3af; }
-    .message-banner {
-        padding: 1rem 2rem;
-        border-radius: 12px;
-        font-weight: 600;
-        text-align: center;
-    }
-    .message-banner.won {
-        background: linear-gradient(135deg, #22c55e, #16a34a);
-        color: white;
-    }
-    .message-banner.lost {
-        background: linear-gradient(135deg, var(--pink-main), var(--pink-accent));
-        color: white;
-    }
-    .share-btn {
-        padding: 0.75rem 1.5rem;
-        border-radius: 8px;
-        background: var(--pink-main);
-        color: white;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    .share-btn:hover {
-        background: var(--pink-accent);
-        transform: translateY(-2px);
-    }
+    
     @keyframes pop {
         0% { transform: scale(1); }
         50% { transform: scale(1.1); }
         100% { transform: scale(1); }
     }
-    @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        20%, 60% { transform: translateX(-5px); }
-        40%, 80% { transform: translateX(5px); }
+
+    .victory-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        padding: 1rem;
+        backdrop-filter: blur(4px);
     }
-    .shake {
-        animation: shake 0.4s ease;
+    .victory-content {
+        position: relative;
+        background: var(--pink-main);
+        padding: 2rem;
+        border-radius: 16px;
+        text-align: center;
+        max-width: 400px;
+        width: 100%;
+        border: 2px solid white;
+        animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        color: white;
+    }
+    .victory-title {
+        font-size: 2rem;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+        color: white;
+    }
+    .stat-row {
+        display: flex;
+        justify-content: space-around;
+        margin: 1.5rem 0;
+        padding: 1rem;
+        background: rgba(255,255,255,0.05);
+        border-radius: 12px;
+    }
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: white;
+    }
+    .stat-label {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.9);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .share-btn {
+        background: white;
+        color: var(--pink-main);
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 99px;
+        font-weight: bold;
+        font-size: 1.1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0 auto;
+        transition: transform 0.2s;
+        box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+    }
+    .share-btn:hover {
+        transform: translateY(-2px);
+    }
+    @keyframes slideUp {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
     }
 `
 
 export default function GwendlePage() {
     const { showToast } = useToast()
-    const [dailyWord, setDailyWord] = useState('')
-    const [dayNumber, setDayNumber] = useState(0)
+    const [wordLength, setWordLength] = useState<WordLength>(5)
+
+    // Game state
+    const [targetWord, setTargetWord] = useState('')
     const [guesses, setGuesses] = useState<string[]>([])
     const [currentGuess, setCurrentGuess] = useState('')
     const [gameState, setGameState] = useState<GameState>('playing')
-    const [letterStates, setLetterStates] = useState<Record<string, LetterState>>({})
-    const [shakeRow, setShakeRow] = useState(-1)
+    const [dayNumber, setDayNumber] = useState(0)
+    const [showModal, setShowModal] = useState(false)
 
-    // Load game state from localStorage
+    // Auth state
+    const [user, setUser] = useState<any>(null)
+    const [streaks, setStreaks] = useState<Record<number, number>>({ 5: 0, 7: 0 })
+    const hasSyncedRef = useRef(false)
+
+    // Load daily word and user state
     useEffect(() => {
-        const { word, dayNumber: day } = getDailyWord()
-        setDailyWord(word)
-        setDayNumber(day)
-
-        const saved = localStorage.getItem('gwendle-game')
-        if (saved) {
+        // Load user from session
+        const loadUser = async () => {
             try {
-                const data: GameData = JSON.parse(saved)
-                if (data.dayNumber === day) {
-                    setGuesses(data.guesses)
-                    setGameState(data.gameState)
-                    // Rebuild letter states
-                    const states: Record<string, LetterState> = {}
-                    for (const guess of data.guesses) {
-                        const result = checkGuess(guess, word)
-                        guess.split('').forEach((letter, i) => {
-                            const current = states[letter]
-                            if (result[i] === 'correct') {
-                                states[letter] = 'correct'
-                            } else if (result[i] === 'present' && current !== 'correct') {
-                                states[letter] = 'present'
-                            } else if (!current) {
-                                states[letter] = 'absent'
-                            }
-                        })
+                const res = await fetch('/api/auth/session')
+                if (res.ok) {
+                    const data = await res.json()
+                    if (data.authenticated && data.user) {
+                        // Fetch player ID from /api/auth/me for DB operations
+                        const meRes = await fetch('/api/auth/me')
+                        if (meRes.ok) {
+                            const playerData = await meRes.json()
+                            setUser(playerData) // { id, username, auth_id }
+                        }
                     }
-                    setLetterStates(states)
                 }
             } catch (e) {
-                console.error('Error loading game:', e)
+                console.error('Auth check failed', e)
             }
         }
+        loadUser()
     }, [])
 
-    // Save game state
-    const saveGame = useCallback((newGuesses: string[], newState: GameState) => {
-        const data: GameData = {
-            dayNumber,
-            guesses: newGuesses,
-            gameState: newState
+    // Sync score when user loads and game is done (backfill) - runs only once
+    useEffect(() => {
+        if (hasSyncedRef.current) return
+        if (user && gameState !== 'playing' && guesses.length > 0 && dayNumber === getDailyWord(wordLength).dayNumber) {
+            hasSyncedRef.current = true
+            const won = gameState === 'won'
+            saveScore(won, guesses.length, targetWord, wordLength)
         }
-        localStorage.setItem('gwendle-game', JSON.stringify(data))
-    }, [dayNumber])
+    }, [user, gameState, guesses, targetWord, wordLength, dayNumber])
 
-    const handleKeyPress = useCallback((key: string) => {
+    // Load game state when wordLength changes
+    useEffect(() => {
+        const daily = getDailyWord(wordLength)
+        setTargetWord(daily.word)
+        setDayNumber(daily.dayNumber)
+
+        // Restore state from local storage specific to length
+        const savedState = localStorage.getItem(`gwendle-state-${wordLength}`)
+        if (savedState) {
+            try {
+                const parsed: GameData = JSON.parse(savedState)
+                // Only restore if it's the same day and same word length
+                if (parsed.dayNumber === daily.dayNumber && parsed.wordLength === wordLength) {
+                    setGuesses(parsed.guesses)
+                    setGameState(parsed.gameState)
+                    if (parsed.gameState !== 'playing') {
+                        setShowModal(true)
+                        // Attempt to save score to ensure sync with DB (backfill)
+                        // Need to wait for user to be loaded
+                        if (user) {
+                            saveScore(parsed.gameState === 'won', parsed.guesses.length, daily.word, wordLength)
+                        }
+                    }
+                } else {
+                    // Reset for new day
+                    setGuesses([])
+                    setGameState('playing')
+                    setCurrentGuess('')
+                }
+            } catch (e) {
+                console.error('Failed to parse saved state', e)
+                setGuesses([])
+                setGameState('playing')
+            }
+        } else {
+            setGuesses([])
+            setGameState('playing')
+            setCurrentGuess('')
+            setShowModal(false)
+        }
+    }, [wordLength])
+
+    // Save state on change
+    useEffect(() => {
+        if (dayNumber > 0) {
+            const data: GameData = {
+                dayNumber,
+                guesses,
+                gameState,
+                wordLength
+            }
+            localStorage.setItem(`gwendle-state-${wordLength}`, JSON.stringify(data))
+        }
+    }, [guesses, gameState, dayNumber, wordLength])
+
+    // Handle game win/loss logic (separate from render/input to ensure clean separation)
+    useEffect(() => {
+        if (gameState !== 'playing') return
+
+        const lastGuess = guesses[guesses.length - 1]
+        if (!lastGuess) return
+
+        if (lastGuess === targetWord) {
+            setGameState('won')
+            setShowModal(true)
+            saveScore(true, guesses.length, targetWord, wordLength)
+            showToast('Magnifique ! 👏', 'success')
+        } else if (guesses.length >= MAX_ATTEMPTS) {
+            setGameState('lost')
+            setShowModal(true)
+            saveScore(false, guesses.length, targetWord, wordLength)
+            showToast(`Dommage ! Le mot etait ${targetWord}`, 'error')
+        }
+    }, [guesses, targetWord]) // Depend on guesses and targetWord
+
+    const saveScore = async (won: boolean, attempts: number, word: string, len: number) => {
+        if (!user) return
+
+        try {
+            const res = await fetch('/api/stats/gwendle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    playerId: user.id,
+                    word,
+                    attempts,
+                    won,
+                    wordLength: len
+                })
+            })
+
+            if (res.ok) {
+                const data = await res.json()
+                if (data.streak) setStreaks(prev => ({ ...prev, [len]: data.streak }))
+            }
+        } catch (e) {
+            console.error('Failed to save score', e)
+        }
+    }
+
+    const handleKey = useCallback((key: string) => {
         if (gameState !== 'playing') return
 
         if (key === 'ENTER') {
-            if (currentGuess.length !== WORD_LENGTH) {
-                showToast('Le mot doit faire 5 lettres', 'error')
-                return
-            }
-            if (!isValidWord(currentGuess)) {
-                showToast('Mot non reconnu', 'error')
-                setShakeRow(guesses.length)
-                setTimeout(() => setShakeRow(-1), 400)
-                return
-            }
-
-            // Check guess
-            const result = checkGuess(currentGuess, dailyWord)
-            const newGuesses = [...guesses, currentGuess.toUpperCase()]
-            setGuesses(newGuesses)
-            setCurrentGuess('')
-
-            // Update letter states
-            const newStates = { ...letterStates }
-            currentGuess.toUpperCase().split('').forEach((letter, i) => {
-                const current = newStates[letter]
-                if (result[i] === 'correct') {
-                    newStates[letter] = 'correct'
-                } else if (result[i] === 'present' && current !== 'correct') {
-                    newStates[letter] = 'present'
-                } else if (!current) {
-                    newStates[letter] = 'absent'
-                }
-            })
-            setLetterStates(newStates)
-
-            // Check win/lose
-            if (currentGuess.toUpperCase() === dailyWord) {
-                setGameState('won')
-                saveGame(newGuesses, 'won')
-            } else if (newGuesses.length >= MAX_ATTEMPTS) {
-                setGameState('lost')
-                saveGame(newGuesses, 'lost')
-            } else {
-                saveGame(newGuesses, 'playing')
-            }
-        } else if (key === '⌫' || key === 'BACKSPACE') {
+            submitGuess()
+        } else if (key === '⌫') {
             setCurrentGuess(prev => prev.slice(0, -1))
-        } else if (/^[A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇŒÆ]$/i.test(key) && currentGuess.length < WORD_LENGTH) {
-            setCurrentGuess(prev => prev + key.toUpperCase())
+        } else if (currentGuess.length < wordLength && /^[A-Z]$/.test(key)) {
+            setCurrentGuess(prev => prev + key)
         }
-    }, [gameState, currentGuess, guesses, dailyWord, letterStates, showToast, saveGame])
+    }, [currentGuess, gameState, wordLength])
 
-    // Keyboard event listener
+    // Physical keyboard listener
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if (e.ctrlKey || e.metaKey || e.altKey) return
-            handleKeyPress(e.key.toUpperCase())
+            if (e.key === 'Enter') handleKey('ENTER')
+            else if (e.key === 'Backspace') handleKey('⌫')
+            else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase())
         }
         window.addEventListener('keydown', handler)
         return () => window.removeEventListener('keydown', handler)
-    }, [handleKeyPress])
+    }, [handleKey])
+
+    const submitGuess = () => {
+        if (currentGuess.length !== wordLength) {
+            showToast('Pas assez de lettres !', 'error')
+            return
+        }
+
+        if (!isValidWord(currentGuess, wordLength)) {
+            showToast('Ce mot n\'est pas dans la liste', 'error')
+            return
+        }
+
+        setGuesses(prev => [...prev, currentGuess])
+        setCurrentGuess('')
+    }
 
     const handleShare = async () => {
-        const results = guesses.map(g => checkGuess(g, dailyWord))
-        const text = generateShareText(
-            guesses.map(g => g.split('')),
-            results,
-            gameState === 'won',
-            dayNumber
-        )
+        const results = guesses.map(g => checkGuess(g, targetWord))
+        const text = generateShareText(guesses, results, gameState === 'won', dayNumber, wordLength)
 
         try {
             await navigator.clipboard.writeText(text)
-            showToast('Résultat copié ! 📋', 'success')
-        } catch {
+            showToast('Resultat copie !', 'success')
+        } catch (e) {
             showToast('Erreur lors de la copie', 'error')
         }
     }
 
+    // Helpers for grid display
     const getCellState = (rowIndex: number, cellIndex: number): LetterState => {
+        // If it's a past guess
         if (rowIndex < guesses.length) {
             const guess = guesses[rowIndex]
-            return checkGuess(guess, dailyWord)[cellIndex]
+            const result = checkGuess(guess, targetWord)
+            return result[cellIndex] as LetterState
         }
-        if (rowIndex === guesses.length && cellIndex < currentGuess.length) {
-            return 'tbd'
+        // If it's current row
+        if (rowIndex === guesses.length) {
+            if (cellIndex < currentGuess.length) return 'tbd'
+            return 'empty'
         }
         return 'empty'
     }
 
     const getCellLetter = (rowIndex: number, cellIndex: number): string => {
         if (rowIndex < guesses.length) {
-            return guesses[rowIndex][cellIndex] || ''
+            return guesses[rowIndex][cellIndex]
         }
         if (rowIndex === guesses.length) {
             return currentGuess[cellIndex] || ''
@@ -309,98 +447,150 @@ export default function GwendlePage() {
         return ''
     }
 
+    // Keyboard coloring
+    const getKeyState = (key: string): string => {
+        let state = ''
+        guesses.forEach(guess => {
+            const result = checkGuess(guess, targetWord)
+            guess.split('').forEach((letter, i) => {
+                if (letter === key) {
+                    if (result[i] === 'correct') state = 'correct'
+                    else if (result[i] === 'present' && state !== 'correct') state = 'present'
+                    else if (result[i] === 'absent' && state === '') state = 'absent'
+                }
+            })
+        })
+        return state
+    }
+
     return (
         <>
-            <style>{styles}</style>
-            <div className="animate-slideIn">
-                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+            <style>{getStyles(wordLength)}</style>
+
+            <div className="gwendle-container fade-in" style={{ padding: '2rem 1rem' }}>
+                <div style={{ textAlign: 'center' }}>
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>
                         <span style={{ color: 'var(--pink-accent)' }}>Gwen</span>dle
                     </h1>
-                    <p style={{ color: 'var(--text-muted)' }}>
-                        Devine le mot en 8 essais • Jour #{dayNumber}
-                    </p>
+                    <p style={{ color: 'var(--text-muted)' }}>Le Wordle version Gwen (Mot #{dayNumber})</p>
                 </div>
 
-                <div className="gwendle-container">
-                    {/* Game Grid */}
-                    <div className="game-grid">
-                        {Array.from({ length: MAX_ATTEMPTS }).map((_, rowIndex) => (
-                            <div
-                                key={rowIndex}
-                                className={`row ${shakeRow === rowIndex ? 'shake' : ''}`}
+                <div className="mode-selector">
+                    <button
+                        className={`mode-btn ${wordLength === 5 ? 'active' : ''}`}
+                        onClick={() => setWordLength(5)}
+                    >
+                        5 Lettres
+                    </button>
+                    <button
+                        className={`mode-btn ${wordLength === 7 ? 'active' : ''}`}
+                        onClick={() => setWordLength(7)}
+                    >
+                        7 Lettres
+                    </button>
+                </div>
+
+                {/* Game Grid */}
+                <div className="game-grid">
+                    {Array.from({ length: MAX_ATTEMPTS }).map((_, rowIndex) => (
+                        <div key={rowIndex} className="row">
+                            {Array.from({ length: wordLength }).map((_, cellIndex) => (
+                                <div
+                                    key={cellIndex}
+                                    className={`cell ${getCellState(rowIndex, cellIndex)}`}
+                                >
+                                    {getCellLetter(rowIndex, cellIndex)}
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Keyboard */}
+                <div className="keyboard">
+                    {KEYBOARD_ROWS.map((row, i) => (
+                        <div key={i} className="keyboard-row">
+                            {row.map(key => (
+                                <button
+                                    key={key}
+                                    className={`key ${getKeyState(key)}`}
+                                    onClick={() => handleKey(key)}
+                                    style={key === 'ENTER' || key === '⌫' ? { flex: 1.5 } : {}}
+                                >
+                                    {key}
+                                </button>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Victory/Defeat Modal */}
+                {(gameState === 'won' || gameState === 'lost') && showModal && (
+                    <div className="victory-modal" onClick={() => setShowModal(false)}>
+                        <div className="victory-content" onClick={e => e.stopPropagation()}>
+                            <button
+                                onClick={() => setShowModal(false)}
+                                style={{
+                                    position: 'absolute',
+                                    top: '1rem',
+                                    right: '1rem',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'white',
+                                    fontSize: '1.5rem',
+                                    cursor: 'pointer',
+                                    padding: '0.5rem',
+                                    lineHeight: 1
+                                }}
                             >
-                                {Array.from({ length: WORD_LENGTH }).map((_, cellIndex) => (
-                                    <div
-                                        key={cellIndex}
-                                        className={`cell ${getCellState(rowIndex, cellIndex)}`}
-                                    >
-                                        {getCellLetter(rowIndex, cellIndex)}
-                                    </div>
-                                ))}
+                                ✕
+                            </button>
+                            <h2 className="victory-title">
+                                {gameState === 'won' ? 'Victoire !' : 'Perdu...'}
+                            </h2>
+
+                            {/* Streak Stats */}
+                            {streaks[wordLength] > 0 && gameState === 'won' && (
+                                <div style={{
+                                    background: 'rgba(255, 255, 255, 0.2)',
+                                    color: 'white',
+                                    padding: '0.5rem',
+                                    borderRadius: '8px',
+                                    marginBottom: '1rem',
+                                    fontWeight: 'bold'
+                                }}>
+                                    🔥 Série en cours : {streaks[wordLength]}
+                                </div>
+                            )}
+
+                            <div className="stat-row">
+                                <div className="stat-item">
+                                    <span className="stat-value">{dayNumber}</span>
+                                    <span className="stat-label">Jour #</span>
+                                </div>
+                                <div className="stat-item">
+                                    <span className="stat-value">
+                                        {gameState === 'won' ? guesses.length : 'X'}
+                                    </span>
+                                    <span className="stat-label">Essais</span>
+                                </div>
                             </div>
-                        ))}
-                    </div>
 
-                    {/* Win/Lose Banner */}
-                    {gameState === 'won' && (
-                        <div className="message-banner won">
-                            🎉 Bravo ! Tu as trouvé en {guesses.length} essai{guesses.length > 1 ? 's' : ''} !
-                        </div>
-                    )}
-                    {gameState === 'lost' && (
-                        <div className="message-banner lost">
-                            Le mot était : <strong>{dailyWord}</strong>
-                        </div>
-                    )}
+                            <p style={{ marginBottom: '2rem', fontSize: '1.2rem' }}>
+                                Le mot etait : <strong style={{ color: 'white', textDecoration: 'underline' }}>{targetWord}</strong>
+                            </p>
 
-                    {/* Share Button */}
-                    {gameState !== 'playing' && (
-                        <button className="share-btn" onClick={handleShare}>
-                            📤 Partager mon résultat
-                        </button>
-                    )}
-
-                    {/* Keyboard */}
-                    <div className="keyboard">
-                        {KEYBOARD_ROWS.map((row, rowIndex) => (
-                            <div key={rowIndex} className="keyboard-row">
-                                {row.map(key => (
-                                    <button
-                                        key={key}
-                                        className={`key ${key.length > 1 ? 'wide' : ''} ${letterStates[key] || ''}`}
-                                        onClick={() => handleKeyPress(key)}
-                                    >
-                                        {key}
-                                    </button>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Instructions */}
-                    <div style={{
-                        marginTop: '1rem',
-                        padding: '1rem',
-                        background: 'var(--bg-card)',
-                        borderRadius: '12px',
-                        fontSize: '0.85rem',
-                        color: 'var(--text-muted)'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                            <span style={{ width: '20px', height: '20px', background: '#22c55e', borderRadius: '4px' }}></span>
-                            Bonne lettre, bonne position
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                            <span style={{ width: '20px', height: '20px', background: '#eab308', borderRadius: '4px' }}></span>
-                            Bonne lettre, mauvaise position
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ width: '20px', height: '20px', background: '#6b7280', borderRadius: '4px' }}></span>
-                            Lettre absente du mot
+                            <button className="share-btn" onClick={handleShare}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                                    <polyline points="16 6 12 2 8 6" />
+                                    <line x1="12" y1="2" x2="12" y2="15" />
+                                </svg>
+                                Partager
+                            </button>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
         </>
     )

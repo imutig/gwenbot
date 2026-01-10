@@ -25,6 +25,9 @@ Paste your schema output here in this format:
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
 CREATE TABLE public.authorized_users (
   id integer NOT NULL DEFAULT nextval('authorized_users_id_seq'::regclass),
   username character varying NOT NULL UNIQUE,
@@ -51,6 +54,7 @@ CREATE TABLE public.cemantig_sessions (
   finished_at timestamp without time zone,
   winner_id integer,
   total_guesses integer DEFAULT 0,
+  is_random boolean DEFAULT false,
   CONSTRAINT cemantig_sessions_pkey PRIMARY KEY (id),
   CONSTRAINT cemantig_sessions_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.players(id)
 );
@@ -62,6 +66,20 @@ CREATE TABLE public.chat_messages (
   sent_at timestamp with time zone DEFAULT now(),
   CONSTRAINT chat_messages_pkey PRIMARY KEY (id),
   CONSTRAINT chat_messages_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(id)
+);
+CREATE TABLE public.connect4_games (
+  id integer NOT NULL DEFAULT nextval('connect4_games_id_seq'::regclass),
+  status character varying NOT NULL DEFAULT 'waiting'::character varying CHECK (status::text = ANY (ARRAY['waiting'::character varying, 'playing'::character varying, 'finished'::character varying]::text[])),
+  host_id integer,
+  challenger_id integer,
+  board jsonb NOT NULL DEFAULT '[[], [], [], [], [], []]'::jsonb,
+  current_turn character varying DEFAULT 'host'::character varying,
+  winner_id integer,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT connect4_games_pkey PRIMARY KEY (id),
+  CONSTRAINT connect4_games_host_id_fkey FOREIGN KEY (host_id) REFERENCES public.players(id),
+  CONSTRAINT connect4_games_challenger_id_fkey FOREIGN KEY (challenger_id) REFERENCES public.players(id),
+  CONSTRAINT connect4_games_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.players(id)
 );
 CREATE TABLE public.game_sessions (
   id integer NOT NULL DEFAULT nextval('game_sessions_id_seq'::regclass),
@@ -76,6 +94,28 @@ CREATE TABLE public.game_sessions (
   CONSTRAINT game_sessions_pkey PRIMARY KEY (id),
   CONSTRAINT game_sessions_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.players(id)
 );
+CREATE TABLE public.memory_games (
+  id integer NOT NULL DEFAULT nextval('memory_games_id_seq'::regclass),
+  mode character varying NOT NULL,
+  difficulty character varying NOT NULL,
+  status character varying NOT NULL DEFAULT 'waiting'::character varying,
+  host_id integer,
+  challenger_id integer,
+  cards jsonb NOT NULL,
+  matched jsonb DEFAULT '[]'::jsonb,
+  host_pairs integer DEFAULT 0,
+  challenger_pairs integer DEFAULT 0,
+  current_turn character varying DEFAULT 'host'::character varying,
+  winner_id integer,
+  moves integer DEFAULT 0,
+  start_time timestamp with time zone,
+  end_time timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT memory_games_pkey PRIMARY KEY (id),
+  CONSTRAINT memory_games_host_id_fkey FOREIGN KEY (host_id) REFERENCES public.players(id),
+  CONSTRAINT memory_games_challenger_id_fkey FOREIGN KEY (challenger_id) REFERENCES public.players(id),
+  CONSTRAINT memory_games_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.players(id)
+);
 CREATE TABLE public.player_stats (
   id integer NOT NULL DEFAULT nextval('player_stats_id_seq'::regclass),
   player_id integer UNIQUE,
@@ -83,6 +123,7 @@ CREATE TABLE public.player_stats (
   total_points integer DEFAULT 0,
   best_session_score integer DEFAULT 0,
   words_found integer DEFAULT 0,
+  sudoku_br_wins integer DEFAULT 0,
   CONSTRAINT player_stats_pkey PRIMARY KEY (id),
   CONSTRAINT player_stats_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(id)
 );
@@ -114,6 +155,22 @@ CREATE TABLE public.streamer_records (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT streamer_records_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.sudoku_br_players (
+  id integer NOT NULL DEFAULT nextval('sudoku_br_players_id_seq'::regclass),
+  game_id integer,
+  player_id integer,
+  progress text DEFAULT ''::text,
+  cells_filled integer DEFAULT 0,
+  errors integer DEFAULT 0,
+  status character varying DEFAULT 'playing'::character varying,
+  finish_rank integer,
+  finish_time integer,
+  joined_at timestamp with time zone DEFAULT now(),
+  finished_at timestamp with time zone,
+  CONSTRAINT sudoku_br_players_pkey PRIMARY KEY (id),
+  CONSTRAINT sudoku_br_players_game_id_fkey FOREIGN KEY (game_id) REFERENCES public.sudoku_games(id),
+  CONSTRAINT sudoku_br_players_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(id)
+);
 CREATE TABLE public.sudoku_games (
   id integer NOT NULL DEFAULT nextval('sudoku_games_id_seq'::regclass),
   mode character varying NOT NULL,
@@ -130,6 +187,9 @@ CREATE TABLE public.sudoku_games (
   challenger_progress text DEFAULT ''::text,
   time_seconds integer,
   challenger_id integer,
+  host_errors integer DEFAULT 0,
+  challenger_errors integer DEFAULT 0,
+  is_battle_royale boolean DEFAULT false,
   CONSTRAINT sudoku_games_pkey PRIMARY KEY (id),
   CONSTRAINT sudoku_games_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.players(id),
   CONSTRAINT sudoku_games_host_id_fkey FOREIGN KEY (host_id) REFERENCES public.players(id),
@@ -190,6 +250,7 @@ CREATE TABLE public.viewer_presence (
   CONSTRAINT viewer_presence_stream_id_fkey FOREIGN KEY (stream_id) REFERENCES public.twitch_streams(id),
   CONSTRAINT viewer_presence_player_id_fkey FOREIGN KEY (player_id) REFERENCES public.players(id)
 );
+
 ## Known Tables
 
 Based on the codebase, these tables are used:

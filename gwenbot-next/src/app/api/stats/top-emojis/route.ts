@@ -17,7 +17,6 @@ export async function GET() {
             .from('chat_messages')
             .select('emojis')
             .not('emojis', 'is', null)
-            .limit(1000)
 
         // Count emoji occurrences
         const emojiCounts: Record<string, number> = {}

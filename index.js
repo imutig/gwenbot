@@ -601,7 +601,27 @@ async function handleMessage(msg) {
 
         // === Commande publique: !pileouface ===
         if (command === 'pileouface' || command === 'flip' || command === 'coin') {
-            const result = Math.random() < 0.5 ? '🪙 Pile !' : '🪙 Face !';
+            const isHeads = Math.random() < 0.5;
+            const result = isHeads ? '🪙 Pile !' : '🪙 Face !';
+
+            // Broadcast for overlay animation
+            const channel = supabase.channel('coinflip-broadcast');
+            channel.subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    channel.send({
+                        type: 'broadcast',
+                        event: 'coinflip',
+                        payload: {
+                            username: msg.username,
+                            result: isHeads ? 'pile' : 'face',
+                            resultText: result
+                        }
+                    }).then(() => {
+                        supabase.removeChannel(channel);
+                    });
+                }
+            });
+
             twitchClient.say(msg.channel, `@${msg.username} ${result}`);
             return;
         }

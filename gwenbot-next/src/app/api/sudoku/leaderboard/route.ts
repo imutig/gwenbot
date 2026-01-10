@@ -39,7 +39,7 @@ export async function GET(request: Request) {
         if (error) throw error
 
         // Format leaderboard - each game entry with its difficulty
-        const leaderboard = (games || []).map(game => {
+        const allEntries = (games || []).map(game => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const winner = game.winner as any
             const username = Array.isArray(winner) ? winner[0]?.username : winner?.username
@@ -51,7 +51,14 @@ export async function GET(request: Request) {
             }
         }).filter(g => g.username !== 'Anonyme')
             .sort((a, b) => a.time_seconds - b.time_seconds)
-            .slice(0, 50) // Return more entries for client-side filtering
+
+        // Deduplicate: keep only best time per player
+        const seen = new Set<string>()
+        const leaderboard = allEntries.filter(entry => {
+            if (seen.has(entry.username)) return false
+            seen.add(entry.username)
+            return true
+        }).slice(0, 50) // Return more entries for client-side filtering
 
         // Also get counts by difficulty
         const { data: easyCounts } = await supabase
