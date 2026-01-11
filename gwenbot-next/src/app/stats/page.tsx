@@ -10,6 +10,7 @@ const styles = `
       margin-bottom: 1.5rem;
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 0.5rem;
+      flex-wrap: wrap;
   }
   .stats-tab {
       padding: 0.5rem 1rem;
@@ -22,6 +23,7 @@ const styles = `
       transition: all 0.2s;
       display: flex;
       align-items: center;
+      font-size: 0.9rem;
   }
   .stats-tab.active {
       background: var(--pink-accent);
@@ -37,6 +39,11 @@ const styles = `
   .search-box { 
       display: flex; 
       gap: 0.75rem;
+      flex-wrap: wrap;
+  }
+  .search-box input {
+      flex: 1;
+      min-width: 200px;
   }
   .autocomplete-list {
       position: absolute;
@@ -63,6 +70,28 @@ const styles = `
       display: grid; 
       grid-template-columns: repeat(2, 1fr); 
       gap: 1rem; 
+  }
+  @media (max-width: 480px) {
+      .stats-grid {
+          grid-template-columns: 1fr;
+      }
+      .stats-tabs {
+          gap: 0.25rem;
+      }
+      .stats-tab {
+          padding: 0.4rem 0.75rem;
+          font-size: 0.8rem;
+      }
+      .stat-value {
+          font-size: 1.5rem;
+      }
+      .player-header {
+          flex-direction: column;
+          text-align: center;
+      }
+      .leaderboard-item {
+          flex-wrap: wrap;
+      }
   }
   .stat-card { 
       padding: 1.25rem; 

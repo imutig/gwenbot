@@ -155,7 +155,20 @@ export async function GET(request: Request) {
                         status: p.status,
                         finishRank: p.finish_rank,
                         finishTime: p.finish_time
-                    }))
+                    })).sort((a: { status: string; finishRank?: number; finishTime?: number; cellsFilled: number }, b: { status: string; finishRank?: number; finishTime?: number; cellsFilled: number }) => {
+                        // Finished players first, sorted by finish rank (1st place first)
+                        if (a.status === 'finished' && b.status === 'finished') {
+                            return (a.finishRank || 999) - (b.finishRank || 999)
+                        }
+                        // Finished players before playing/eliminated
+                        if (a.status === 'finished') return -1
+                        if (b.status === 'finished') return 1
+                        // Playing players before eliminated
+                        if (a.status === 'playing' && b.status === 'eliminated') return -1
+                        if (a.status === 'eliminated' && b.status === 'playing') return 1
+                        // Among same status, sort by cells filled (most first)
+                        return b.cellsFilled - a.cellsFilled
+                    })
 
                     const activePlayers = brPlayers.filter((p: { status: string }) => p.status === 'playing')
                     const leader = activePlayers.length > 0 ? activePlayers[0] : brPlayers[0]
@@ -266,7 +279,17 @@ export async function GET(request: Request) {
                             status: p.status,
                             finishRank: p.finish_rank,
                             finishTime: p.finish_time
-                        }))
+                        })).sort((a: { status: string; finishRank?: number; cellsFilled: number }, b: { status: string; finishRank?: number; cellsFilled: number }) => {
+                            // Finished players first, sorted by finish rank
+                            if (a.status === 'finished' && b.status === 'finished') {
+                                return (a.finishRank || 999) - (b.finishRank || 999)
+                            }
+                            if (a.status === 'finished') return -1
+                            if (b.status === 'finished') return 1
+                            if (a.status === 'playing' && b.status === 'eliminated') return -1
+                            if (a.status === 'eliminated' && b.status === 'playing') return 1
+                            return b.cellsFilled - a.cellsFilled
+                        })
 
                         const activePlayers = brPlayers.filter((p: { status: string }) => p.status === 'playing')
                         const leader = activePlayers.length > 0 ? activePlayers[0] : brPlayers[0]

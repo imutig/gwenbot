@@ -2088,6 +2088,38 @@ export default function SudokuPage() {
                         )}
                     </div>
                 )}
+
+                {/* BR Finished: Return to menu button */}
+                {brGameFinished && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+                        <FancyButton
+                            size="sm"
+                            onClick={() => {
+                                // Reset all BR state
+                                setGameState({ status: 'idle' })
+                                setTimer(0)
+                                setIsTimerRunning(false)
+                                setHistory([])
+                                setHistoryIndex(-1)
+                                setGrid(Array(81).fill(0))
+                                setOriginalPuzzle([])
+                                setIsEliminated(false)
+                                setMyBRRank(null)
+                                setHasBRFinished(false)
+                                setBrGameFinished(false)
+                                setBrWinner(null)
+                                setBrPlayers([])
+                                setLeaderProgress('')
+                                setLeaderUsername('')
+                                setErrorCount(0)
+                                gameInitializedRef.current = false
+                                setMessage(null)
+                            }}
+                        >
+                            Retour au menu
+                        </FancyButton>
+                    </div>
+                )}
             </div>
 
             {/* BR Leaderboard sidebar */}

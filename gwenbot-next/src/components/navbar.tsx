@@ -18,6 +18,7 @@ const gameLinks = [
     { href: '/memory', label: 'Memory', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}><rect width="6" height="6" x="3" y="3" rx="1" /><rect width="6" height="6" x="15" y="3" rx="1" /><rect width="6" height="6" x="3" y="15" rx="1" /><rect width="6" height="6" x="15" y="15" rx="1" /></svg> },
     { href: '/connect4', label: 'P4', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}><circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="12" cy="12" r="3" /><circle cx="18" cy="12" r="3" /><circle cx="6" cy="18" r="3" /><circle cx="12" cy="18" r="3" /></svg> },
     { href: '/sudoku', label: 'Sudoku', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></svg> },
+    { href: '/pictionary', label: 'Pictionary', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '16px', height: '16px' }}><path d="M12 19l7-7 3 3-7 7-3-3z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" /><path d="M2 2l7.586 7.586" /><circle cx="11" cy="11" r="2" /></svg> },
 ]
 
 const navLinks = [
@@ -61,11 +62,38 @@ const GamepadIcon = () => (
     </svg>
 )
 
+// Hamburger icon for mobile menu
+const HamburgerIcon = ({ isOpen }: { isOpen: boolean }) => (
+    <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ width: '24px', height: '24px' }}
+    >
+        {isOpen ? (
+            <>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+            </>
+        ) : (
+            <>
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="18" x2="20" y2="18" />
+            </>
+        )}
+    </svg>
+)
+
 export default function Navbar() {
     const pathname = usePathname()
     const [user, setUser] = useState<User | null>(null)
     const [isAdmin, setIsAdmin] = useState(false)
     const [gamesOpen, setGamesOpen] = useState(false)
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const gamesRef = useRef<HTMLLIElement>(null)
     const supabase = createClient()
 
@@ -227,6 +255,24 @@ export default function Navbar() {
                     ))}
                 </ul>
 
+                {/* Hamburger Button - Mobile Only */}
+                <button
+                    className="hamburger-btn"
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    aria-label="Toggle menu"
+                    style={{
+                        display: 'none',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0.5rem',
+                        color: 'var(--text-primary)',
+                        marginLeft: 'auto'
+                    }}
+                >
+                    <HamburgerIcon isOpen={mobileMenuOpen} />
+                </button>
+
                 {/* Auth Section */}
                 <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     {user ? (
@@ -238,10 +284,11 @@ export default function Navbar() {
                                 height={32}
                                 style={{ borderRadius: '50%', border: '2px solid var(--pink-main)' }}
                             />
-                            <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                            <span className="user-name-desktop" style={{ fontWeight: 500, fontSize: '0.9rem' }}>
                                 {user.user_metadata?.user_name}
                             </span>
                             <button
+                                className="logout-btn-desktop"
                                 onClick={() => supabase?.auth.signOut()}
                                 style={{
                                     padding: '0.4rem 0.75rem',
@@ -257,12 +304,221 @@ export default function Navbar() {
                             </button>
                         </>
                     ) : (
-                        <Link href="/auth/login" style={{ textDecoration: 'none' }}>
+                        <Link href="/auth/login" className="login-btn-desktop" style={{ textDecoration: 'none' }}>
                             <FancyButton size="xs">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
                                     <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                                 </svg>
                                 Connexion
+                            </FancyButton>
+                        </Link>
+                    )}
+                </div>
+            </div>
+
+            {/* Mobile Menu Overlay */}
+            {mobileMenuOpen && (
+                <div
+                    className="mobile-menu-overlay"
+                    onClick={() => setMobileMenuOpen(false)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.5)',
+                        zIndex: 999
+                    }}
+                />
+            )}
+
+            {/* Mobile Menu Drawer */}
+            <div
+                className="mobile-menu"
+                style={{
+                    position: 'fixed',
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: '280px',
+                    maxWidth: '85vw',
+                    background: 'var(--bg-base)',
+                    zIndex: 1000,
+                    transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(100%)',
+                    transition: 'transform 0.3s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '1rem',
+                    overflowY: 'auto'
+                }}
+            >
+                {/* Close button */}
+                <button
+                    onClick={() => setMobileMenuOpen(false)}
+                    style={{
+                        alignSelf: 'flex-end',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0.5rem',
+                        color: 'var(--text-primary)'
+                    }}
+                >
+                    <HamburgerIcon isOpen={true} />
+                </button>
+
+                {/* User info in mobile */}
+                {user && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '1rem',
+                        marginBottom: '1rem',
+                        background: 'var(--bg-card)',
+                        borderRadius: '12px'
+                    }}>
+                        <Image
+                            src={user.user_metadata?.avatar_url || '/default-avatar.png'}
+                            alt={user.user_metadata?.user_name || 'User'}
+                            width={40}
+                            height={40}
+                            style={{ borderRadius: '50%', border: '2px solid var(--pink-main)' }}
+                        />
+                        <span style={{ fontWeight: 500 }}>{user.user_metadata?.user_name}</span>
+                    </div>
+                )}
+
+                {/* Mobile nav links */}
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {navLinks.map(link => (
+                        <Link
+                            key={link.href}
+                            href={link.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                padding: '0.875rem 1rem',
+                                borderRadius: '10px',
+                                textDecoration: 'none',
+                                color: pathname === link.href ? 'var(--pink-accent)' : 'var(--text-primary)',
+                                background: pathname === link.href ? 'rgba(236, 72, 153, 0.1)' : 'transparent',
+                                fontWeight: 500,
+                                fontSize: '1rem'
+                            }}
+                        >
+                            {link.icon}
+                            {link.label}
+                        </Link>
+                    ))}
+
+                    {/* Games section */}
+                    <div style={{
+                        marginTop: '0.5rem',
+                        paddingTop: '0.5rem',
+                        borderTop: '1px solid var(--border-color)'
+                    }}>
+                        <span style={{
+                            display: 'block',
+                            padding: '0.5rem 1rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: 'var(--text-muted)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                        }}>
+                            Jeux
+                        </span>
+                        {gameLinks.map(link => (
+                            <Link
+                                key={link.href}
+                                href={link.href}
+                                onClick={() => setMobileMenuOpen(false)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.75rem',
+                                    padding: '0.875rem 1rem',
+                                    borderRadius: '10px',
+                                    textDecoration: 'none',
+                                    color: pathname === link.href ? 'var(--pink-accent)' : 'var(--text-primary)',
+                                    background: pathname === link.href ? 'rgba(236, 72, 153, 0.1)' : 'transparent',
+                                    fontWeight: 500,
+                                    fontSize: '1rem'
+                                }}
+                            >
+                                {link.icon}
+                                {link.label}
+                            </Link>
+                        ))}
+                    </div>
+
+                    {/* Admin links */}
+                    {isAdmin && (
+                        <div style={{
+                            marginTop: '0.5rem',
+                            paddingTop: '0.5rem',
+                            borderTop: '1px solid var(--border-color)'
+                        }}>
+                            {adminLinks.map(link => (
+                                <Link
+                                    key={link.href}
+                                    href={link.href}
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.75rem',
+                                        padding: '0.875rem 1rem',
+                                        borderRadius: '10px',
+                                        textDecoration: 'none',
+                                        color: pathname === link.href ? 'var(--pink-accent)' : 'var(--text-primary)',
+                                        background: pathname === link.href ? 'rgba(236, 72, 153, 0.1)' : 'transparent',
+                                        fontWeight: 500,
+                                        fontSize: '1rem'
+                                    }}
+                                >
+                                    {link.icon}
+                                    {link.label}
+                                </Link>
+                            ))}
+                        </div>
+                    )}
+                </nav>
+
+                {/* Mobile auth */}
+                <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                    {user ? (
+                        <button
+                            onClick={() => {
+                                supabase?.auth.signOut()
+                                setMobileMenuOpen(false)
+                            }}
+                            style={{
+                                width: '100%',
+                                padding: '0.875rem 1rem',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '10px',
+                                color: 'var(--text-primary)',
+                                cursor: 'pointer',
+                                fontSize: '1rem',
+                                fontWeight: 500
+                            }}
+                        >
+                            Déconnexion
+                        </button>
+                    ) : (
+                        <Link
+                            href="/auth/login"
+                            onClick={() => setMobileMenuOpen(false)}
+                            style={{ textDecoration: 'none', display: 'block' }}
+                        >
+                            <FancyButton style={{ width: '100%', justifyContent: 'center' }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
+                                    <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                                </svg>
+                                Connexion avec Twitch
                             </FancyButton>
                         </Link>
                     )}

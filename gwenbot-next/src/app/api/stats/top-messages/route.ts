@@ -4,32 +4,54 @@ import { NextResponse } from 'next/server'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-export async function GET() {
+export async function GET(request: Request) {
     if (!supabaseUrl || !supabaseServiceKey) {
         return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 })
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const { searchParams } = new URL(request.url)
+    const period = searchParams.get('period') // 'all', 'month', 'week'
 
     try {
-        // Get top chatters
-        const { data: topChatters } = await supabase
-            .from('chat_messages')
-            .select('player_id, players!inner(username)')
-            .limit(1000) // Get last 1000 messages to count
+        // Build base query
+        let query = supabase
+            .from('viewer_presence')
+            .select('player_id, message_count, players!inner(username), twitch_streams!inner(started_at)')
+            .gt('message_count', 0)
 
-        // Count messages per player
+        // Apply period filter through the joined twitch_streams table
+        if (period === 'month') {
+            const oneMonthAgo = new Date()
+            oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+            query = query.gte('twitch_streams.started_at', oneMonthAgo.toISOString())
+        } else if (period === 'week') {
+            const oneWeekAgo = new Date()
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+            query = query.gte('twitch_streams.started_at', oneWeekAgo.toISOString())
+        }
+
+        const { data: presenceData } = await query
+
+        // Aggregate message counts per player across streams
         const messageCounts: Record<string, { username: string; count: number }> = {}
 
-        if (topChatters) {
-            for (const msg of topChatters) {
+        if (presenceData) {
+            for (const presence of presenceData) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const players = msg.players as any
-                const username = players?.username ?? (Array.isArray(players) ? players[0]?.username : 'Unknown')
+                const players = presence.players as any
+                const username = players?.username ?? (Array.isArray(players) ? players[0]?.username : null)
+                if (!username) continue
+
+                // Filter out bots
+                if (['xsgwen', 'gwenbot_', 'streamelements'].includes(username.toLowerCase())) {
+                    continue
+                }
+
                 if (!messageCounts[username]) {
                     messageCounts[username] = { username, count: 0 }
                 }
-                messageCounts[username].count++
+                messageCounts[username].count += presence.message_count || 0
             }
         }
 
