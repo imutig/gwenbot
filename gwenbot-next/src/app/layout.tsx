@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import ConditionalLayout from "@/components/conditional-layout";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
+import CookieConsent from "@/components/CookieConsent";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -90,9 +92,11 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body className={poppins.className}>
+        <GoogleAnalytics />
         <ConditionalLayout floralBackground={<FloralBackground />}>
           {children}
         </ConditionalLayout>
+        <CookieConsent />
       </body>
     </html>
   );
