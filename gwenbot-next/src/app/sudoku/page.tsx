@@ -68,7 +68,7 @@ const PlayIcon = ({ size = 16 }: { size?: number }) => (
 )
 
 type Mode = 'solo' | '1v1' | 'battle_royale'
-type Difficulty = 'easy' | 'medium' | 'hard'
+type Difficulty = 'easy' | 'medium' | 'hard' | 'expert'
 type GameStatus = 'idle' | 'waiting' | 'playing' | 'finished'
 
 interface Lobby {
@@ -1543,6 +1543,7 @@ export default function SudokuPage() {
                             <button style={getDifficultyButtonStyle('easy')} onClick={() => setDifficulty('easy')}>Facile</button>
                             <button style={getDifficultyButtonStyle('medium')} onClick={() => setDifficulty('medium')}>Moyen</button>
                             <button style={getDifficultyButtonStyle('hard')} onClick={() => setDifficulty('hard')}>Difficile</button>
+                            <button style={getDifficultyButtonStyle('expert')} onClick={() => setDifficulty('expert')}>Expert</button>
                         </div>
                     </div>
 

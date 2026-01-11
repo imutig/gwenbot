@@ -14,7 +14,8 @@
     "dotenv": "^17.2.3",
     "next": "16.1.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "sudoku-gen": "^1.0.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

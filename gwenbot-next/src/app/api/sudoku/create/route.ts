@@ -1,53 +1,22 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { getSudoku } from 'sudoku-gen'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-// Simple Sudoku generator
-function generateSudoku(difficulty: 'easy' | 'medium' | 'hard'): { puzzle: string, solution: string } {
-    // This is a simplified generator - for production use a proper library
-    const solution = [
-        [5, 3, 4, 6, 7, 8, 9, 1, 2],
-        [6, 7, 2, 1, 9, 5, 3, 4, 8],
-        [1, 9, 8, 3, 4, 2, 5, 6, 7],
-        [8, 5, 9, 7, 6, 1, 4, 2, 3],
-        [4, 2, 6, 8, 5, 3, 7, 9, 1],
-        [7, 1, 3, 9, 2, 4, 8, 5, 6],
-        [9, 6, 1, 5, 3, 7, 2, 8, 4],
-        [2, 8, 7, 4, 1, 9, 6, 3, 5],
-        [3, 4, 5, 2, 8, 6, 1, 7, 9]
-    ]
+// Map difficulty names to sudoku-gen format
+type Difficulty = 'easy' | 'medium' | 'hard' | 'expert'
 
-    // Shuffle rows within blocks
-    for (let block = 0; block < 3; block++) {
-        const rows = [block * 3, block * 3 + 1, block * 3 + 2]
-        for (let i = rows.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1))
-                ;[solution[rows[i]], solution[rows[j]]] = [solution[rows[j]], solution[rows[i]]]
-        }
-    }
+function generateSudoku(difficulty: Difficulty): { puzzle: string, solution: string } {
+    // sudoku-gen guarantees unique solutions
+    const sudoku = getSudoku(difficulty)
 
-    const solutionStr = solution.flat().join('')
+    // sudoku-gen uses '-' for empty cells, we use '0'
+    const puzzle = sudoku.puzzle.replace(/-/g, '0')
+    const solution = sudoku.solution
 
-    // Remove cells based on difficulty
-    const cellsToRemove = difficulty === 'easy' ? 30 : difficulty === 'medium' ? 45 : 55
-    const puzzle = solution.flat()
-    const indices = [...Array(81).keys()]
-
-    for (let i = indices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-            ;[indices[i], indices[j]] = [indices[j], indices[i]]
-    }
-
-    for (let i = 0; i < cellsToRemove; i++) {
-        puzzle[indices[i]] = 0
-    }
-
-    return {
-        puzzle: puzzle.join(''),
-        solution: solutionStr
-    }
+    return { puzzle, solution }
 }
 
 export async function POST(request: Request) {

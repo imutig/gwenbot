@@ -82,12 +82,20 @@ export async function GET(request: Request) {
             .eq('status', 'finished')
             .eq('difficulty', 'hard')
 
+        const { data: expertCounts } = await supabase
+            .from('sudoku_games')
+            .select('*', { count: 'exact', head: true })
+            .eq('mode', 'solo')
+            .eq('status', 'finished')
+            .eq('difficulty', 'expert')
+
         return NextResponse.json({
             leaderboard,
             stats: {
                 easy: easyCounts,
                 medium: mediumCounts,
-                hard: hardCounts
+                hard: hardCounts,
+                expert: expertCounts
             }
         })
     } catch (error) {
