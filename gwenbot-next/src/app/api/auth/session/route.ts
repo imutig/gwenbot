@@ -45,8 +45,10 @@ export async function GET() {
                 id: user.id,
                 email: user.email,
                 display_name: userMetadata.full_name || userMetadata.name || userMetadata.preferred_username || user.email,
+                user_name: userMetadata.user_name || userMetadata.preferred_username || userMetadata.name,
                 avatar_url: userMetadata.avatar_url || userMetadata.picture,
-                provider: user.app_metadata?.provider || 'unknown'
+                provider: user.app_metadata?.provider || 'unknown',
+                user_metadata: userMetadata
             }
         })
     } catch (error) {

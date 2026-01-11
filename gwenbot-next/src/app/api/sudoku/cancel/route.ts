@@ -19,26 +19,41 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Username required' }, { status: 400 })
         }
 
-        // Check if user is authorized
-        const { data: authorizedUser } = await supabase
-            .from('authorized_users')
-            .select('username')
-            .eq('username', username.toLowerCase())
-            .single()
+        // Get active game first (including recently finished that might need cleanup)
+        let query = supabase
+            .from('sudoku_games')
+            .select('id, host_id, status, players!sudoku_games_host_id_fkey(username)')
+            .in('status', ['waiting', 'playing', 'finished'])
 
-        if (!authorizedUser) {
-            return NextResponse.json({ error: 'Only authorized users can cancel games' }, { status: 403 })
+        // If gameId provided, target that specific game
+        if (gameId) {
+            query = query.eq('id', gameId)
+        } else {
+            query = query.order('created_at', { ascending: false }).limit(1)
         }
 
-        // Get active game
-        const { data: game } = await supabase
-            .from('sudoku_games')
-            .select('id, host_id, players!sudoku_games_host_id_fkey(username)')
-            .in('status', ['waiting', 'playing'])
-            .single()
+        const { data: game } = await query.maybeSingle()
 
         if (!game) {
             return NextResponse.json({ error: 'No active game found' }, { status: 404 })
+        }
+
+        // Check if user is host of this game
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const hostUsername = (game.players as any)?.username?.toLowerCase()
+        const isHost = hostUsername === username.toLowerCase()
+
+        // If not the host, check if user is authorized
+        if (!isHost) {
+            const { data: authorizedUser } = await supabase
+                .from('authorized_users')
+                .select('username')
+                .eq('username', username.toLowerCase())
+                .single()
+
+            if (!authorizedUser) {
+                return NextResponse.json({ error: 'Only the host or authorized users can cancel games' }, { status: 403 })
+            }
         }
 
         // Delete the queue entries first

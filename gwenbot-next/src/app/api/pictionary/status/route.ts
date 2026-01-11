@@ -39,7 +39,7 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Game not found' }, { status: 404 })
         }
 
-        // Get all players with scores
+        // Get all players with scores (drawers)
         const { data: players } = await supabase
             .from('pictionary_players')
             .select('player_id, score, draw_order, has_drawn, players!inner(username)')
@@ -53,6 +53,21 @@ export async function GET(request: Request) {
             score: p.score,
             drawOrder: p.draw_order,
             hasDrawn: p.has_drawn
+        }))
+
+        // Get all guessers (viewers who guessed correctly) - sorted by score
+        const { data: guessers } = await supabase
+            .from('pictionary_guessers')
+            .select('player_id, score, correct_guesses, players!inner(username)')
+            .eq('game_id', gameId)
+            .order('score', { ascending: false })
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const formattedGuessers = (guessers || []).map((g: any) => ({
+            id: g.player_id,
+            username: Array.isArray(g.players) ? g.players[0]?.username : g.players?.username,
+            score: g.score,
+            correctGuesses: g.correct_guesses
         }))
 
         // Get current player info if username provided
@@ -111,6 +126,7 @@ export async function GET(request: Request) {
             // Only reveal word to drawer
             currentWord: isDrawer ? game.current_word : null,
             players: formattedPlayers,
+            guessers: formattedGuessers, // Viewer leaderboard
             currentPlayer,
             isHost,
             isDrawer,

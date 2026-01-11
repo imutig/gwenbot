@@ -548,6 +548,51 @@ async function handleMessage(msg) {
             return;
         }
 
+        // === Commande publique: !dessin <mot> (Pictionary) ===
+        if (command === 'dessin' || command === 'd' || command === 'draw') {
+            const guess = args.join(' ').toLowerCase().trim();
+
+            if (!guess) {
+                twitchClient.say(msg.channel, `@${msg.username} Utilisation: !dessin <mot>`);
+                return;
+            }
+
+            console.log(`[PICTIONARY BOT] Guess from ${username}: "${guess}"`);
+
+            try {
+                // Find any active Pictionary game
+                const currentRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/pictionary/current`);
+                const currentData = await currentRes.json();
+
+                console.log(`[PICTIONARY BOT] Current game:`, currentData);
+
+                if (!currentData.active || !currentData.game) {
+                    twitchClient.say(msg.channel, `@${msg.username} Pas de partie Pictionary en cours !`);
+                    return;
+                }
+
+                const gameId = currentData.game.id;
+
+                // Send guess to API
+                const guessRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/pictionary/guess`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gameId, username, guess })
+                });
+                const guessData = await guessRes.json();
+
+                console.log(`[PICTIONARY BOT] Guess result:`, guessData);
+
+                if (guessData.correct) {
+                    twitchClient.say(msg.channel, `🎉 BRAVO @${msg.username} ! Le mot était "${guessData.word}" ! +${guessData.points} points 🎉`);
+                }
+                // For wrong guesses, don't respond - too spammy
+            } catch (error) {
+                console.error('Pictionary guess error:', error);
+            }
+            return;
+        }
+
         // === Commande mod: !indice [score] (Cemantig hint) ===
         if (command === 'indice' || command === 'hint') {
             // Only mods and streamer can give hints

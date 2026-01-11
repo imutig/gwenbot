@@ -46,17 +46,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ correct: false, message: 'Drawer cannot guess' })
         }
 
-        // Check if player is in the game
-        const { data: playerInGame } = await supabase
-            .from('pictionary_players')
-            .select('id')
-            .eq('game_id', gameId)
-            .eq('player_id', guesser.id)
-            .single()
+        // NOTE: We don't require the guesser to be in pictionary_players
+        // because Twitch viewers can guess without being a drawer
 
-        if (!playerInGame) {
-            return NextResponse.json({ correct: false, message: 'Not in this game' })
-        }
+        // Debug logging
+        console.log('[PICTIONARY GUESS]', {
+            gameId,
+            username,
+            guess: guess.toLowerCase(),
+            currentWord: game.current_word,
+            currentRound: game.current_round,
+            normalizedGuess: normalizeText(guess),
+            normalizedWord: normalizeText(game.current_word)
+        })
 
         // Check guess
         if (!isCorrectGuess(guess, game.current_word)) {
@@ -71,19 +73,33 @@ export async function POST(request: Request) {
         const timeRemaining = Math.max(0, 180 - (Date.now() - startTime) / 1000)
         const points = calculatePoints(timeRemaining)
 
-        // Update player score directly
-        const { data: currentPlayer } = await supabase
-            .from('pictionary_players')
-            .select('score')
+        // Update guesser score in pictionary_guessers table (for viewers who guess)
+        const { data: existingGuesser } = await supabase
+            .from('pictionary_guessers')
+            .select('score, correct_guesses')
             .eq('game_id', gameId)
             .eq('player_id', guesser.id)
             .single()
 
-        await supabase
-            .from('pictionary_players')
-            .update({ score: (currentPlayer?.score || 0) + points })
-            .eq('game_id', gameId)
-            .eq('player_id', guesser.id)
+        if (existingGuesser) {
+            await supabase
+                .from('pictionary_guessers')
+                .update({
+                    score: (existingGuesser.score || 0) + points,
+                    correct_guesses: (existingGuesser.correct_guesses || 0) + 1
+                })
+                .eq('game_id', gameId)
+                .eq('player_id', guesser.id)
+        } else {
+            await supabase
+                .from('pictionary_guessers')
+                .insert({
+                    game_id: gameId,
+                    player_id: guesser.id,
+                    score: points,
+                    correct_guesses: 1
+                })
+        }
 
         // Update current round record
         await supabase

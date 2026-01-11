@@ -43,9 +43,20 @@ CREATE TABLE IF NOT EXISTS pictionary_rounds (
   round_number INTEGER NOT NULL
 );
 
+-- Viewers/guessers who guessed correctly in a game
+CREATE TABLE IF NOT EXISTS pictionary_guessers (
+  id SERIAL PRIMARY KEY,
+  game_id INTEGER REFERENCES pictionary_games(id) ON DELETE CASCADE,
+  player_id INTEGER REFERENCES players(id),
+  score INTEGER DEFAULT 0,
+  correct_guesses INTEGER DEFAULT 0,
+  UNIQUE(game_id, player_id)
+);
+
 -- Index for quick game lookups
 CREATE INDEX IF NOT EXISTS idx_pictionary_players_game ON pictionary_players(game_id);
 CREATE INDEX IF NOT EXISTS idx_pictionary_rounds_game ON pictionary_rounds(game_id);
+CREATE INDEX IF NOT EXISTS idx_pictionary_guessers_game ON pictionary_guessers(game_id);
 
 -- Enable realtime for games table
 ALTER PUBLICATION supabase_realtime ADD TABLE pictionary_games;

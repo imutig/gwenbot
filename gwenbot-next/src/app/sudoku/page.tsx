@@ -147,6 +147,9 @@ export default function SudokuPage() {
     const [opponentErrors, setOpponentErrors] = useState(0)
     const [lossReason, setLossReason] = useState<'completed' | 'errors' | null>(null)
 
+    // Pause state (solo mode only)
+    const [isPaused, setIsPaused] = useState(false)
+
     // Battle Royale specific states
     const [isEliminated, setIsEliminated] = useState(false)
     const [myBRRank, setMyBRRank] = useState<number | null>(null)
@@ -188,10 +191,10 @@ export default function SudokuPage() {
         loadUser()
     }, [])
 
-    // Timer effect
+    // Timer effect - pauses when isPaused is true
     useEffect(() => {
         let interval: NodeJS.Timeout | null = null
-        if (isTimerRunning) {
+        if (isTimerRunning && !isPaused) {
             interval = setInterval(() => {
                 setTimer(t => t + 1)
             }, 1000)
@@ -199,12 +202,12 @@ export default function SudokuPage() {
         return () => {
             if (interval) clearInterval(interval)
         }
-    }, [isTimerRunning])
+    }, [isTimerRunning, isPaused])
 
     // Keyboard input effect
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (gameState.status !== 'playing' || selectedCell === null) return
+            if (gameState.status !== 'playing' || selectedCell === null || isPaused) return
 
             const key = e.key
             const isOriginalCell = originalPuzzle[selectedCell] !== 0
@@ -502,10 +505,6 @@ export default function SudokuPage() {
     }
 
     const handleCreate1v1 = async () => {
-        if (!user.isAuthorized) {
-            setMessage('Seuls les utilisateurs autorisés peuvent créer une session 1v1')
-            return
-        }
 
         // Reset error counts for new game
         setErrorCount(0)
@@ -729,7 +728,7 @@ export default function SudokuPage() {
             const res = await fetch('/api/sudoku/cancel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: user.username })
+                body: JSON.stringify({ username: user.username, gameId: gameState.id })
             })
             const data = await res.json()
             if (data.success) {
@@ -745,6 +744,7 @@ export default function SudokuPage() {
     }
 
     const handleCellClick = (index: number) => {
+        if (isPaused) return // Don't allow clicks when paused
         setSelectedCell(index)
         // Focus the grid for keyboard input
         gridRef.current?.focus()
@@ -752,6 +752,7 @@ export default function SudokuPage() {
 
     const handleNumberInput = async (num: number) => {
         console.log('[Sudoku Debug] *** handleNumberInput called ***', { num, selectedCell, hasSolution: !!gameState.solution })
+        if (isPaused) return // Don't allow inputs when paused
         if (selectedCell === null) return
         if (originalPuzzle[selectedCell] !== 0) return // Can't edit original cells
         if (gameState.status === 'finished') return // Game already ended
@@ -1003,73 +1004,110 @@ export default function SudokuPage() {
 
     // Render Sudoku grid
     const renderGrid = () => (
-        <div
-            ref={gridRef}
-            tabIndex={0}
-            style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(9, 1fr)',
-                gap: '2px',
-                background: 'var(--border-color)',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                width: '100%',
-                maxWidth: '540px',
-                margin: '0 auto 1rem',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                outline: 'none'
-            }}>
-            {grid.map((value, i) => {
-                const isOriginal = originalPuzzle[i] !== 0
-                const isSelected = selectedCell === i
-                const row = Math.floor(i / 9)
-                const col = i % 9
-                const isThickRight = col === 2 || col === 5
-                const isThickBottom = row === 2 || row === 5
-                const { isHighlighted, isSameNumber, isConflictingWithSelected } = getCellHighlight(i, value)
-                const isError = !isOriginal && hasConflict(i, value)
-
-                // Background color logic
-                let bgColor = 'var(--bg-base)'
-                if (isSelected && isError) bgColor = 'rgba(239, 68, 68, 0.4)'
-                else if (isSelected) bgColor = 'var(--pink-accent)'
-                else if (isConflictingWithSelected) bgColor = 'rgba(239, 68, 68, 0.25)'
-                else if (isError) bgColor = 'rgba(239, 68, 68, 0.2)'
-                else if (isSameNumber) bgColor = 'rgba(236, 72, 153, 0.3)'
-                else if (isHighlighted) bgColor = 'rgba(236, 72, 153, 0.1)'
-                else if (isOriginal) bgColor = 'var(--bg-card)'
-
-                // Text color logic
-                let textColor = 'var(--pink-accent)'
-                if (isSelected && isError) textColor = 'white'
-                else if (isSelected) textColor = 'white'
-                else if (isConflictingWithSelected || isError) textColor = '#dc2626'
-                else if (isSameNumber) textColor = 'var(--pink-accent)'
-                else if (isOriginal) textColor = 'var(--text-primary)'
-
-                return (
-                    <div
-                        key={i}
-                        onClick={() => handleCellClick(i)}
+        <div style={{ position: 'relative' }}>
+            {/* Pause overlay - solo mode only */}
+            {isPaused && !gameState.challenger && !gameState.isBattleRoyale && (
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.9)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                    gap: '1rem'
+                }}>
+                    <div style={{ fontSize: '3rem' }}>⏸️</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'white' }}>Jeu en pause</div>
+                    <button
+                        onClick={() => setIsPaused(false)}
                         style={{
-                            aspectRatio: '1',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: bgColor,
-                            color: textColor,
-                            fontWeight: isOriginal || isSameNumber || isError ? 700 : 500,
-                            fontSize: 'clamp(1.2rem, 4vw, 1.8rem)',
-                            cursor: 'pointer',
-                            borderRight: isThickRight ? '3px solid var(--text-primary)' : undefined,
-                            borderBottom: isThickBottom ? '3px solid var(--text-primary)' : undefined,
-                            transition: 'background 0.15s ease'
+                            marginTop: '1rem',
+                            padding: '0.75rem 2rem',
+                            borderRadius: '8px',
+                            border: 'none',
+                            background: 'var(--pink-accent)',
+                            color: 'white',
+                            fontSize: '1rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
                         }}
                     >
-                        {value || ''}
-                    </div>
-                )
-            })}
+                        ▶️ Reprendre
+                    </button>
+                </div>
+            )}
+            <div
+                ref={gridRef}
+                tabIndex={0}
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(9, 1fr)',
+                    gap: '2px',
+                    background: 'var(--border-color)',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    width: '100%',
+                    maxWidth: '540px',
+                    margin: '0 auto 1rem',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                    outline: 'none',
+                    filter: isPaused && !gameState.challenger && !gameState.isBattleRoyale ? 'blur(10px)' : 'none'
+                }}>
+                {grid.map((value, i) => {
+                    const isOriginal = originalPuzzle[i] !== 0
+                    const isSelected = selectedCell === i
+                    const row = Math.floor(i / 9)
+                    const col = i % 9
+                    const isThickRight = col === 2 || col === 5
+                    const isThickBottom = row === 2 || row === 5
+                    const { isHighlighted, isSameNumber, isConflictingWithSelected } = getCellHighlight(i, value)
+                    const isError = !isOriginal && hasConflict(i, value)
+
+                    // Background color logic
+                    let bgColor = 'var(--bg-base)'
+                    if (isSelected && isError) bgColor = 'rgba(239, 68, 68, 0.4)'
+                    else if (isSelected) bgColor = 'var(--pink-accent)'
+                    else if (isConflictingWithSelected) bgColor = 'rgba(239, 68, 68, 0.25)'
+                    else if (isError) bgColor = 'rgba(239, 68, 68, 0.2)'
+                    else if (isSameNumber) bgColor = 'rgba(236, 72, 153, 0.3)'
+                    else if (isHighlighted) bgColor = 'rgba(236, 72, 153, 0.1)'
+                    else if (isOriginal) bgColor = 'var(--bg-card)'
+
+                    // Text color logic
+                    let textColor = 'var(--pink-accent)'
+                    if (isSelected && isError) textColor = 'white'
+                    else if (isSelected) textColor = 'white'
+                    else if (isConflictingWithSelected || isError) textColor = '#dc2626'
+                    else if (isSameNumber) textColor = 'var(--pink-accent)'
+                    else if (isOriginal) textColor = 'var(--text-primary)'
+
+                    return (
+                        <div
+                            key={i}
+                            onClick={() => handleCellClick(i)}
+                            style={{
+                                aspectRatio: '1',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: bgColor,
+                                color: textColor,
+                                fontWeight: isOriginal || isSameNumber || isError ? 700 : 500,
+                                fontSize: 'clamp(1.2rem, 4vw, 1.8rem)',
+                                cursor: 'pointer',
+                                borderRight: isThickRight ? '3px solid var(--text-primary)' : undefined,
+                                borderBottom: isThickBottom ? '3px solid var(--text-primary)' : undefined,
+                                transition: 'background 0.15s ease'
+                            }}
+                        >
+                            {value || ''}
+                        </div>
+                    )
+                })}
+            </div>
         </div>
     )
 
@@ -1452,18 +1490,39 @@ export default function SudokuPage() {
                         }}>
                             ❌ {errorCount}/3
                         </span>
+                        {/* Pause button - solo mode only */}
+                        {!gameState.challenger && !gameState.isBattleRoyale && gameState.status === 'playing' && (
+                            <button
+                                onClick={() => setIsPaused(!isPaused)}
+                                style={{
+                                    marginLeft: '0.5rem',
+                                    padding: '0.4rem 0.6rem',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-color)',
+                                    background: isPaused ? 'var(--pink-accent)' : 'var(--bg-card)',
+                                    color: isPaused ? 'white' : 'var(--text-primary)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.85rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                }}
+                            >
+                                {isPaused ? '▶️' : '⏸️'}
+                            </button>
+                        )}
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button
                             onClick={handleUndo}
-                            disabled={historyIndex <= 0}
+                            disabled={historyIndex <= 0 || isPaused}
                             style={{
                                 padding: '0.5rem 0.75rem',
                                 borderRadius: '8px',
                                 border: '1px solid var(--border-color)',
-                                background: historyIndex <= 0 ? 'var(--bg-input)' : 'var(--bg-card)',
-                                color: historyIndex <= 0 ? 'var(--text-muted)' : 'var(--text-primary)',
-                                cursor: historyIndex <= 0 ? 'not-allowed' : 'pointer',
+                                background: historyIndex <= 0 || isPaused ? 'var(--bg-input)' : 'var(--bg-card)',
+                                color: historyIndex <= 0 || isPaused ? 'var(--text-muted)' : 'var(--text-primary)',
+                                cursor: historyIndex <= 0 || isPaused ? 'not-allowed' : 'pointer',
                                 fontSize: '0.9rem'
                             }}
                         >
@@ -1471,14 +1530,14 @@ export default function SudokuPage() {
                         </button>
                         <button
                             onClick={handleRedo}
-                            disabled={historyIndex >= history.length - 1}
+                            disabled={historyIndex >= history.length - 1 || isPaused}
                             style={{
                                 padding: '0.5rem 0.75rem',
                                 borderRadius: '8px',
                                 border: '1px solid var(--border-color)',
-                                background: historyIndex >= history.length - 1 ? 'var(--bg-input)' : 'var(--bg-card)',
-                                color: historyIndex >= history.length - 1 ? 'var(--text-muted)' : 'var(--text-primary)',
-                                cursor: historyIndex >= history.length - 1 ? 'not-allowed' : 'pointer',
+                                background: historyIndex >= history.length - 1 || isPaused ? 'var(--bg-input)' : 'var(--bg-card)',
+                                color: historyIndex >= history.length - 1 || isPaused ? 'var(--text-muted)' : 'var(--text-primary)',
+                                cursor: historyIndex >= history.length - 1 || isPaused ? 'not-allowed' : 'pointer',
                                 fontSize: '0.9rem'
                             }}
                         >
@@ -2018,10 +2077,10 @@ export default function SudokuPage() {
                     <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
                         <button
                             onClick={() => {
-                                if (gameState.challenger && user.isAuthorized) {
-                                    // 1v1: Call API to cancel
+                                // 1v1: Host can cancel the game
+                                if (gameState.challenger && gameState.host?.username?.toLowerCase() === user.username.toLowerCase()) {
                                     handleCancelGame()
-                                } else {
+                                } else if (!gameState.challenger) {
                                     // Solo: Just reset local state
                                     setGameState({ status: 'idle' })
                                     setTimer(0)
