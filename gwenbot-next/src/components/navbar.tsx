@@ -334,7 +334,7 @@ export default function Navbar() {
                         position: 'fixed',
                         inset: 0,
                         background: 'rgba(0,0,0,0.5)',
-                        zIndex: 999
+                        zIndex: 9998
                     }}
                 />
             )}
@@ -350,7 +350,7 @@ export default function Navbar() {
                     width: '280px',
                     maxWidth: '85vw',
                     background: 'var(--bg-base)',
-                    zIndex: 1000,
+                    zIndex: 9999,
                     transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(100%)',
                     transition: 'transform 0.3s ease',
                     display: 'flex',
