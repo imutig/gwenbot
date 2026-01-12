@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import FancyButton from '@/components/ui/fancy-button'
@@ -325,156 +326,85 @@ export default function Navbar() {
                 </div>
             </div>
 
-            {/* Mobile Menu Overlay */}
-            {mobileMenuOpen && (
-                <div
-                    className="mobile-menu-overlay"
-                    onClick={() => setMobileMenuOpen(false)}
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0,0,0,0.5)',
-                        zIndex: 9998
-                    }}
-                />
-            )}
+            {/* Mobile Menu Portal */}
+            {mobileMenuOpen && typeof document !== 'undefined' && createPortal(
+                <>
+                    <div
+                        className="mobile-menu-overlay"
+                        onClick={() => setMobileMenuOpen(false)}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(0,0,0,0.5)',
+                            zIndex: 9998
+                        }}
+                    />
 
-            {/* Mobile Menu Drawer */}
-            <div
-                className="mobile-menu"
-                style={{
-                    position: 'fixed',
-                    top: 0,
-                    right: 0,
-                    bottom: 0,
-                    width: '280px',
-                    maxWidth: '85vw',
-                    background: 'var(--bg-base)',
-                    zIndex: 9999,
-                    transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(100%)',
-                    transition: 'transform 0.3s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    padding: '1rem',
-                    overflowY: 'auto'
-                }}
-            >
-                {/* Close button */}
-                <button
-                    onClick={() => setMobileMenuOpen(false)}
-                    style={{
-                        alignSelf: 'flex-end',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '0.5rem',
-                        color: 'var(--text-primary)'
-                    }}
-                >
-                    <HamburgerIcon isOpen={true} />
-                </button>
-
-                {/* User info in mobile */}
-                {user && (
-                    <Link href={`/profile/${getTwitchUsername(user)}`} onClick={() => setMobileMenuOpen(false)} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                        padding: '1rem',
-                        marginBottom: '1rem',
-                        background: 'var(--bg-card)',
-                        borderRadius: '12px',
-                        textDecoration: 'none',
-                        color: 'inherit'
-                    }}>
-                        <Image
-                            src={user.user_metadata?.avatar_url || '/default-avatar.png'}
-                            alt={getTwitchUsername(user) || 'User'}
-                            width={40}
-                            height={40}
-                            style={{ borderRadius: '50%', border: '2px solid var(--pink-main)' }}
-                        />
-                        <span style={{ fontWeight: 500 }}>{getTwitchUsername(user)}</span>
-                    </Link>
-                )}
-
-                {/* Mobile nav links */}
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ padding: '0 0 1rem 0' }}>
-                        <UserSearch />
-                    </div>
-                    {navLinks.map(link => (
-                        <Link
-                            key={link.href}
-                            href={link.href}
+                    <div
+                        className="mobile-menu"
+                        style={{
+                            position: 'fixed',
+                            top: 0,
+                            right: 0,
+                            bottom: 0,
+                            width: '280px',
+                            maxWidth: '85vw',
+                            background: 'var(--bg-base)',
+                            zIndex: 9999,
+                            transform: 'translateX(0)',
+                            animation: 'slideIn 0.3s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            padding: '1rem',
+                            overflowY: 'auto',
+                            boxShadow: '-4px 0 20px rgba(0,0,0,0.1)'
+                        }}
+                    >
+                        {/* Close button */}
+                        <button
                             onClick={() => setMobileMenuOpen(false)}
                             style={{
+                                alignSelf: 'flex-end',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '0.5rem',
+                                color: 'var(--text-primary)'
+                            }}
+                        >
+                            <HamburgerIcon isOpen={true} />
+                        </button>
+
+                        {/* User info in mobile */}
+                        {user && (
+                            <Link href={`/profile/${getTwitchUsername(user)}`} onClick={() => setMobileMenuOpen(false)} style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.75rem',
-                                padding: '0.875rem 1rem',
-                                borderRadius: '10px',
+                                padding: '1rem',
+                                marginBottom: '1rem',
+                                background: 'var(--bg-card)',
+                                borderRadius: '12px',
                                 textDecoration: 'none',
-                                color: pathname === link.href ? 'var(--pink-accent)' : 'var(--text-primary)',
-                                background: pathname === link.href ? 'rgba(236, 72, 153, 0.1)' : 'transparent',
-                                fontWeight: 500,
-                                fontSize: '1rem'
-                            }}
-                        >
-                            {link.icon}
-                            {link.label}
-                        </Link>
-                    ))}
-
-                    {/* Games section */}
-                    <div style={{
-                        marginTop: '0.5rem',
-                        paddingTop: '0.5rem',
-                        borderTop: '1px solid var(--border-color)'
-                    }}>
-                        <span style={{
-                            display: 'block',
-                            padding: '0.5rem 1rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                            color: 'var(--text-muted)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.05em'
-                        }}>
-                            Jeux
-                        </span>
-                        {gameLinks.map(link => (
-                            <Link
-                                key={link.href}
-                                href={link.href}
-                                onClick={() => setMobileMenuOpen(false)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.75rem',
-                                    padding: '0.875rem 1rem',
-                                    borderRadius: '10px',
-                                    textDecoration: 'none',
-                                    color: pathname === link.href ? 'var(--pink-accent)' : 'var(--text-primary)',
-                                    background: pathname === link.href ? 'rgba(236, 72, 153, 0.1)' : 'transparent',
-                                    fontWeight: 500,
-                                    fontSize: '1rem'
-                                }}
-                            >
-                                {link.icon}
-                                {link.label}
+                                color: 'inherit'
+                            }}>
+                                <Image
+                                    src={user.user_metadata?.avatar_url || '/default-avatar.png'}
+                                    alt={getTwitchUsername(user) || 'User'}
+                                    width={40}
+                                    height={40}
+                                    style={{ borderRadius: '50%', border: '2px solid var(--pink-main)' }}
+                                />
+                                <span style={{ fontWeight: 500 }}>{getTwitchUsername(user)}</span>
                             </Link>
-                        ))}
-                    </div>
+                        )}
 
-                    {/* Admin links */}
-                    {isAdmin && (
-                        <div style={{
-                            marginTop: '0.5rem',
-                            paddingTop: '0.5rem',
-                            borderTop: '1px solid var(--border-color)'
-                        }}>
-                            {adminLinks.map(link => (
+                        {/* Mobile nav links */}
+                        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div style={{ padding: '0 0 1rem 0' }}>
+                                <UserSearch />
+                            </div>
+                            {navLinks.map(link => (
                                 <Link
                                     key={link.href}
                                     href={link.href}
@@ -496,48 +426,122 @@ export default function Navbar() {
                                     {link.label}
                                 </Link>
                             ))}
-                        </div>
-                    )}
-                </nav>
 
-                {/* Mobile auth */}
-                <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-                    {user ? (
-                        <button
-                            onClick={() => {
-                                supabase?.auth.signOut()
-                                setMobileMenuOpen(false)
-                            }}
-                            style={{
-                                width: '100%',
-                                padding: '0.875rem 1rem',
-                                background: 'var(--bg-card)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '10px',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                fontSize: '1rem',
-                                fontWeight: 500
-                            }}
-                        >
-                            Déconnexion
-                        </button>
-                    ) : (
-                        <Link
-                            href="/auth/login"
-                            onClick={() => setMobileMenuOpen(false)}
-                            style={{ textDecoration: 'none', display: 'block' }}
-                        >
-                            <FancyButton style={{ width: '100%', justifyContent: 'center' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
-                                    <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
-                                </svg>
-                                Connexion avec Twitch
-                            </FancyButton>
-                        </Link>
-                    )}
-                </div>
-            </div>
+                            {/* Games section */}
+                            <div style={{
+                                marginTop: '0.5rem',
+                                paddingTop: '0.5rem',
+                                borderTop: '1px solid var(--border-color)'
+                            }}>
+                                <span style={{
+                                    display: 'block',
+                                    padding: '0.5rem 1rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    color: 'var(--text-muted)',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.05em'
+                                }}>
+                                    Jeux
+                                </span>
+                                {gameLinks.map(link => (
+                                    <Link
+                                        key={link.href}
+                                        href={link.href}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.75rem',
+                                            padding: '0.875rem 1rem',
+                                            borderRadius: '10px',
+                                            textDecoration: 'none',
+                                            color: pathname === link.href ? 'var(--pink-accent)' : 'var(--text-primary)',
+                                            background: pathname === link.href ? 'rgba(236, 72, 153, 0.1)' : 'transparent',
+                                            fontWeight: 500,
+                                            fontSize: '1rem'
+                                        }}
+                                    >
+                                        {link.icon}
+                                        {link.label}
+                                    </Link>
+                                ))}
+                            </div>
+
+                            {/* Admin links */}
+                            {isAdmin && (
+                                <div style={{
+                                    marginTop: '0.5rem',
+                                    paddingTop: '0.5rem',
+                                    borderTop: '1px solid var(--border-color)'
+                                }}>
+                                    {adminLinks.map(link => (
+                                        <Link
+                                            key={link.href}
+                                            href={link.href}
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.75rem',
+                                                padding: '0.875rem 1rem',
+                                                borderRadius: '10px',
+                                                textDecoration: 'none',
+                                                color: pathname === link.href ? 'var(--pink-accent)' : 'var(--text-primary)',
+                                                background: pathname === link.href ? 'rgba(236, 72, 153, 0.1)' : 'transparent',
+                                                fontWeight: 500,
+                                                fontSize: '1rem'
+                                            }}
+                                        >
+                                            {link.icon}
+                                            {link.label}
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
+                        </nav>
+
+                        {/* Mobile auth */}
+                        <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                            {user ? (
+                                <button
+                                    onClick={() => {
+                                        supabase?.auth.signOut()
+                                        setMobileMenuOpen(false)
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.875rem 1rem',
+                                        background: 'var(--bg-card)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '10px',
+                                        color: 'var(--text-primary)',
+                                        cursor: 'pointer',
+                                        fontSize: '1rem',
+                                        fontWeight: 500
+                                    }}
+                                >
+                                    Déconnexion
+                                </button>
+                            ) : (
+                                <Link
+                                    href="/auth/login"
+                                    onClick={() => setMobileMenuOpen(false)}
+                                    style={{ textDecoration: 'none', display: 'block' }}
+                                >
+                                    <FancyButton style={{ width: '100%', justifyContent: 'center' }}>
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ marginRight: '0.5rem' }}>
+                                            <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
+                                        </svg>
+                                        Connexion avec Twitch
+                                    </FancyButton>
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+                </>,
+                document.body
+            )}
         </nav>
     )
 }
