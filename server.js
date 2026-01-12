@@ -590,6 +590,43 @@ app.patch('/api/polls/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// === Announce API Route (for GwenGuessr and other game announcements) ===
+app.post('/api/announce', async (req, res) => {
+    try {
+        // Verify request is from our Next.js app
+        const botSecret = req.headers['x-bot-secret'];
+        if (botSecret !== process.env.BOT_SECRET) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { message, color } = req.body;
+
+        if (!message) {
+            return res.status(400).json({ error: 'Message required' });
+        }
+
+        // Get twitch client
+        const { getTwitchClient } = require('./index');
+        const client = getTwitchClient();
+
+        if (!client) {
+            return res.status(503).json({ error: 'Bot not connected' });
+        }
+
+        // Send announcement
+        const success = await client.sendAnnouncement(message, color || 'purple');
+
+        if (success) {
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ error: 'Failed to send announcement' });
+        }
+    } catch (error) {
+        console.error('Announce error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

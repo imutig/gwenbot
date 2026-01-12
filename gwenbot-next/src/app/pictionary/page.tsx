@@ -640,7 +640,7 @@ export default function PictionaryPage() {
                         <div className="glass-card" style={{ padding: '2rem' }}>
                             <h3 style={{ marginBottom: '1rem' }}>En attente...</h3>
                             <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                                Les viewers peuvent rejoindre via le site ou le chat !
+                                Les viewers peuvent rejoindre via le site !
                             </p>
                             <div style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
                                 <FancyButton

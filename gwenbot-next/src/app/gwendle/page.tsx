@@ -415,7 +415,7 @@ export default function GwendlePage() {
 
         try {
             await navigator.clipboard.writeText(text)
-            showToast('Resultat copie !', 'success')
+            showToast('Résultat copie !', 'success')
         } catch (e) {
             showToast('Erreur lors de la copie', 'error')
         }

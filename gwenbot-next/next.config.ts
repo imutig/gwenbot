@@ -13,6 +13,21 @@ const nextConfig: NextConfig = {
         hostname: 'api.dicebear.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.mapillary.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.fbcdn.net',
+        pathname: '/**',
+      },
     ],
   },
 };
