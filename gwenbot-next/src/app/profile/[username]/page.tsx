@@ -51,6 +51,7 @@ export default function ProfilePage() {
 
     useEffect(() => {
         const checkAuth = async () => {
+            if (!supabase) return
             const { data: { user } } = await supabase.auth.getUser()
             setCurrentUser(user)
         }
