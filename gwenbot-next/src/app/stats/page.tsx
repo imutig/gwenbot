@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import FancyButton from '@/components/ui/fancy-button'
+import UserProfileWidget from '@/components/user-profile-widget'
 
 const styles = `
   .stats-tabs {
@@ -440,15 +441,19 @@ export default function StatsPage() {
         </div>
     )
 
-    const LeaderboardItem = ({ rank, username, value, valueLabel, itemKey }: { rank: number; username: string; value: string | number; valueLabel?: string; itemKey: string }) => (
+    const LeaderboardItem = ({ rank, username, seed, value, valueLabel, itemKey }: { rank: number; username: string; seed?: string; value: string | number; valueLabel?: string; itemKey: string }) => (
         <>
             <div
                 className={`leaderboard-item ${expandedItem === itemKey ? 'expanded' : ''}`}
                 onClick={() => setExpandedItem(expandedItem === itemKey ? null : itemKey)}
             >
                 <div className={`rank-badge ${rank <= 3 ? `rank-${rank}` : ''}`}>{rank}</div>
-                <div style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{username}</div>
-                <div style={{ color: 'var(--pink-accent)', fontWeight: 700, whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>{value}{valueLabel && ` ${valueLabel}`}</div>
+                <div style={{ flex: 1, fontWeight: 500, overflow: 'hidden', minWidth: 0, paddingRight: '0.5rem' }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{ display: 'inline-block' }}>
+                        <UserProfileWidget username={username} seed={seed} showAvatar={false} />
+                    </div>
+                </div>
+                <div style={{ color: 'var(--pink-accent)', fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 'auto' }}>{value}{valueLabel && ` ${valueLabel}`}</div>
             </div>
         </>
     )
@@ -669,7 +674,7 @@ export default function StatsPage() {
                                 <EmptyState message="Aucune partie" />
                             ) : (
                                 sudokuLeaderboard.slice(0, 5).map((e, i) => (
-                                    <LeaderboardItem key={`sudoku-${i}`} itemKey={`sudoku-${i}`} rank={i + 1} username={e.username} value={`${Math.floor(e.time_seconds / 60)}:${(e.time_seconds % 60).toString().padStart(2, '0')}`} />
+                                    <LeaderboardItem key={`sudoku-${i}`} itemKey={`sudoku-${i}`} rank={i + 1} username={e.username} seed={e.avatar_seed} value={`${Math.floor(e.time_seconds / 60)}:${(e.time_seconds % 60).toString().padStart(2, '0')}`} />
                                 ))
                             )}
                         </div>
@@ -686,7 +691,7 @@ export default function StatsPage() {
                                 <EmptyState message="Aucune victoire" />
                             ) : (
                                 brWinsLeaderboard.slice(0, 5).map((e, i) => (
-                                    <LeaderboardItem key={`br-${i}`} itemKey={`br-${i}`} rank={i + 1} username={e.username} value={e.wins} valueLabel="victoires" />
+                                    <LeaderboardItem key={`br-${i}`} itemKey={`br-${i}`} rank={i + 1} username={e.username} seed={e.avatar_seed} value={e.wins} valueLabel="victoires" />
                                 ))
                             )}
                         </div>

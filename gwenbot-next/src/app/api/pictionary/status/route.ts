@@ -29,8 +29,8 @@ export async function GET(request: Request) {
                 current_round,
                 current_word,
                 round_started_at,
-                host:players!pictionary_games_host_id_fkey(id, username),
-                current_drawer:players!pictionary_games_current_drawer_id_fkey(id, username)
+                host:players!pictionary_games_host_id_fkey(id, username, avatar_seed),
+                current_drawer:players!pictionary_games_current_drawer_id_fkey(id, username, avatar_seed)
             `)
             .eq('id', gameId)
             .single()
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
         // Get all players with scores (drawers)
         const { data: players } = await supabase
             .from('pictionary_players')
-            .select('player_id, score, draw_order, has_drawn, players!inner(username)')
+            .select('player_id, score, draw_order, has_drawn, players!inner(username, avatar_seed)')
             .eq('game_id', gameId)
             .order('draw_order', { ascending: true })
 
@@ -50,6 +50,7 @@ export async function GET(request: Request) {
         const formattedPlayers = (players || []).map((p: any) => ({
             id: p.player_id,
             username: Array.isArray(p.players) ? p.players[0]?.username : p.players?.username,
+            avatar_seed: Array.isArray(p.players) ? p.players[0]?.avatar_seed : p.players?.avatar_seed,
             score: p.score,
             drawOrder: p.draw_order,
             hasDrawn: p.has_drawn
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
         // Get all guessers (viewers who guessed correctly) - sorted by score
         const { data: guessers } = await supabase
             .from('pictionary_guessers')
-            .select('player_id, score, correct_guesses, players!inner(username)')
+            .select('player_id, score, correct_guesses, players!inner(username, avatar_seed)')
             .eq('game_id', gameId)
             .order('score', { ascending: false })
 
@@ -66,6 +67,7 @@ export async function GET(request: Request) {
         const formattedGuessers = (guessers || []).map((g: any) => ({
             id: g.player_id,
             username: Array.isArray(g.players) ? g.players[0]?.username : g.players?.username,
+            avatar_seed: Array.isArray(g.players) ? g.players[0]?.avatar_seed : g.players?.avatar_seed,
             score: g.score,
             correctGuesses: g.correct_guesses
         }))

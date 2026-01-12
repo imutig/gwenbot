@@ -15,7 +15,7 @@ export async function GET() {
         // Get top 20 players by BR wins
         const { data: leaders, error } = await supabase
             .from('player_stats')
-            .select('player_id, sudoku_br_wins, players!inner(username)')
+            .select('player_id, sudoku_br_wins, players!inner(username, avatar_seed)')
             .gt('sudoku_br_wins', 0)
             .order('sudoku_br_wins', { ascending: false })
             .limit(20)
@@ -26,6 +26,7 @@ export async function GET() {
         const leaderboard = (leaders || []).map((entry: any, index: number) => ({
             rank: index + 1,
             username: Array.isArray(entry.players) ? entry.players[0]?.username : entry.players?.username,
+            avatar_seed: Array.isArray(entry.players) ? entry.players[0]?.avatar_seed : entry.players?.avatar_seed,
             wins: entry.sudoku_br_wins || 0
         }))
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import FancyButton from '@/components/ui/fancy-button'
+import UserProfileWidget from '@/components/user-profile-widget'
 import type { FabricCanvasRef } from '@/components/games/pictionary/FabricCanvas'
 import { createClient } from '@supabase/supabase-js'
 
@@ -18,6 +19,7 @@ const FabricCanvas = dynamic(() => import('@/components/games/pictionary/FabricC
 interface Player {
     id: number
     username: string
+    avatar_seed?: string
     score: number
     drawOrder: number
     hasDrawn: boolean
@@ -26,6 +28,7 @@ interface Player {
 interface Guesser {
     id: number
     username: string
+    avatar_seed?: string
     score: number
     correctGuesses: number
 }
@@ -76,7 +79,7 @@ export default function PictionaryPage() {
         id: number
         maxPlayers: number
         playerCount: number
-        host: { id: number; username: string }
+        host: { id: number; username: string; avatar_seed?: string }
     }[]>([])
     const canvasRef = useRef<FabricCanvasRef>(null)
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -472,10 +475,13 @@ export default function PictionaryPage() {
                                         fontSize: '0.85rem'
                                     }}
                                 >
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }}>
-                                        {i === 0 ? '👑' : `${i + 1}.`} {guesser.username}
-                                    </span>
-                                    <span style={{ fontWeight: 700 }}>{guesser.score}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden', maxWidth: '120px' }}>
+                                        <span style={{ flexShrink: 0 }}>{i === 0 ? '👑' : `${i + 1}.`}</span>
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                            <UserProfileWidget username={guesser.username} seed={guesser.avatar_seed} showAvatar={false} />
+                                        </div>
+                                    </div>
+                                    <span style={{ fontWeight: 700, marginLeft: 'auto' }}>{guesser.score}</span>
                                 </div>
                             ))
                         ) : (
@@ -500,11 +506,14 @@ export default function PictionaryPage() {
                                     color: gameState.currentDrawer?.id === player.id ? 'white' : 'inherit'
                                 }}
                             >
-                                <span>
-                                    {i + 1}. {player.username}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>{i + 1}.</span>
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <UserProfileWidget username={player.username} seed={player.avatar_seed} showAvatar={false} className={gameState.currentDrawer?.id === player.id ? 'white-text-widget' : ''} />
+                                    </div>
                                     {gameState.currentDrawer?.id === player.id && ' 🎨'}
                                     {gameState.host?.id === player.id && ' 👑'}
-                                </span>
+                                </div>
                                 <span style={{ fontWeight: 700 }}>{player.hasDrawn ? '✓' : '⏳'}</span>
                             </div>
                         ))
@@ -597,8 +606,11 @@ export default function PictionaryPage() {
                                         }}
                                     >
                                         <div>
-                                            <div style={{ fontWeight: 600 }}>
-                                                {lobby.host.username} 👑
+                                            <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                <div onClick={(e) => e.stopPropagation()}>
+                                                    <UserProfileWidget username={lobby.host.username} seed={lobby.host.avatar_seed} showAvatar={false} />
+                                                </div>
+                                                <span>👑</span>
                                             </div>
                                             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                                 {lobby.playerCount}/{lobby.maxPlayers} joueurs

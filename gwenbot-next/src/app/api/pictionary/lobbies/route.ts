@@ -20,7 +20,7 @@ export async function GET() {
                 max_players,
                 status,
                 created_at,
-                host:players!pictionary_games_host_id_fkey(id, username)
+                host:players!pictionary_games_host_id_fkey(id, username, avatar_seed)
             `)
             .eq('status', 'waiting')
             .order('created_at', { ascending: false })
@@ -45,7 +45,8 @@ export async function GET() {
                 playerCount: count || 0,
                 host: {
                     id: Array.isArray(hostData) ? hostData[0]?.id : hostData?.id,
-                    username: Array.isArray(hostData) ? hostData[0]?.username : hostData?.username
+                    username: Array.isArray(hostData) ? hostData[0]?.username : hostData?.username,
+                    avatar_seed: Array.isArray(hostData) ? hostData[0]?.avatar_seed : hostData?.avatar_seed
                 },
                 createdAt: game.created_at
             }

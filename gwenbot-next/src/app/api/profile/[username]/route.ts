@@ -81,6 +81,43 @@ export async function GET(
             .order('finished_at', { ascending: false })
             .limit(20)
 
+        // 5. Get Accurate Counts
+        const { count: sudokuCount } = await supabase
+            .from('sudoku_games')
+            .select('id', { count: 'exact', head: true })
+            .or(`host_id.eq.${player.id},challenger_id.eq.${player.id},winner_id.eq.${player.id}`)
+            .eq('status', 'finished')
+
+        const { count: brCount } = await supabase
+            .from('sudoku_br_players')
+            .select('id', { count: 'exact', head: true })
+            .eq('player_id', player.id)
+            .eq('status', 'finished')
+
+        // Get Pictionary Games Count
+        const { count: pictionaryCount } = await supabase
+            .from('pictionary_players')
+            .select('player_id', { count: 'exact', head: true })
+            .eq('player_id', player.id)
+
+        // Get Wins
+        const { count: sudokuWins } = await supabase
+            .from('sudoku_games')
+            .select('id', { count: 'exact', head: true })
+            .eq('winner_id', player.id)
+            .eq('status', 'finished')
+
+        const { count: brWins } = await supabase
+            .from('sudoku_br_players')
+            .select('id', { count: 'exact', head: true })
+            .eq('player_id', player.id)
+            .eq('finish_rank', 1)
+            .eq('status', 'finished')
+
+        const totalSudokuGames = (sudokuCount || 0) + (brCount || 0)
+        const totalPictionaryGames = pictionaryCount || 0
+        const totalWins = (sudokuWins || 0) + (brWins || 0)
+
         // Combine and format history
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const history: any[] = []
@@ -134,6 +171,9 @@ export async function GET(
         return NextResponse.json({
             player,
             stats: stats || {},
+            totalSudokuGames,
+            totalPictionaryGames,
+            totalWins,
             history: history.slice(0, 20)
         })
     } catch (error) {

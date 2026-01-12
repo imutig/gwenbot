@@ -23,7 +23,7 @@ export async function GET(request: Request) {
                 difficulty,
                 time_seconds,
                 finished_at,
-                winner:players!sudoku_games_winner_id_fkey(username)
+                winner:players!sudoku_games_winner_id_fkey(username, avatar_seed)
             `)
             .eq('status', 'finished')
             .not('time_seconds', 'is', null)
@@ -43,8 +43,10 @@ export async function GET(request: Request) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const winner = game.winner as any
             const username = Array.isArray(winner) ? winner[0]?.username : winner?.username
+            const avatarSeed = Array.isArray(winner) ? winner[0]?.avatar_seed : winner?.avatar_seed
             return {
                 username: username || 'Anonyme',
+                avatar_seed: avatarSeed,
                 difficulty: game.difficulty,
                 time_seconds: game.time_seconds,
                 finished_at: game.finished_at
