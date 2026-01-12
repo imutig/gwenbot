@@ -402,6 +402,11 @@ app.use((req, res, next) => {
         return next();
     }
 
+    // Allow API announce route (for GwenGuessr, Pictionary, etc.)
+    if (req.path === '/api/announce') {
+        return next();
+    }
+
     // Block everything else - show maintenance page
     res.status(503).send(MAINTENANCE_HTML);
 });
