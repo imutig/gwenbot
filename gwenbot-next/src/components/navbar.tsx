@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import FancyButton from '@/components/ui/fancy-button'
+import UserSearch from '@/components/user-search'
 
 import { getTwitchUsername } from '@/lib/auth-utils'
 
@@ -273,20 +274,27 @@ export default function Navbar() {
                     <HamburgerIcon isOpen={mobileMenuOpen} />
                 </button>
 
+                {/* User Search - Desktop */}
+                <div className="hidden md:block">
+                    <UserSearch />
+                </div>
+
                 {/* Auth Section */}
                 <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     {user ? (
                         <>
-                            <Image
-                                src={user.user_metadata?.avatar_url || '/default-avatar.png'}
-                                alt={user.user_metadata?.user_name || 'User'}
-                                width={32}
-                                height={32}
-                                style={{ borderRadius: '50%', border: '2px solid var(--pink-main)' }}
-                            />
-                            <span className="user-name-desktop" style={{ fontWeight: 500, fontSize: '0.9rem' }}>
-                                {user.user_metadata?.user_name}
-                            </span>
+                            <Link href={`/profile/${getTwitchUsername(user)}`} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none', color: 'inherit' }}>
+                                <Image
+                                    src={user.user_metadata?.avatar_url || '/default-avatar.png'}
+                                    alt={getTwitchUsername(user) || 'User'}
+                                    width={32}
+                                    height={32}
+                                    style={{ borderRadius: '50%', border: '2px solid var(--pink-main)' }}
+                                />
+                                <span className="user-name-desktop" style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                                    {getTwitchUsername(user)}
+                                </span>
+                            </Link>
                             <button
                                 className="logout-btn-desktop"
                                 onClick={() => supabase?.auth.signOut()}
@@ -367,28 +375,33 @@ export default function Navbar() {
 
                 {/* User info in mobile */}
                 {user && (
-                    <div style={{
+                    <Link href={`/profile/${getTwitchUsername(user)}`} onClick={() => setMobileMenuOpen(false)} style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.75rem',
                         padding: '1rem',
                         marginBottom: '1rem',
                         background: 'var(--bg-card)',
-                        borderRadius: '12px'
+                        borderRadius: '12px',
+                        textDecoration: 'none',
+                        color: 'inherit'
                     }}>
                         <Image
                             src={user.user_metadata?.avatar_url || '/default-avatar.png'}
-                            alt={user.user_metadata?.user_name || 'User'}
+                            alt={getTwitchUsername(user) || 'User'}
                             width={40}
                             height={40}
                             style={{ borderRadius: '50%', border: '2px solid var(--pink-main)' }}
                         />
-                        <span style={{ fontWeight: 500 }}>{user.user_metadata?.user_name}</span>
-                    </div>
+                        <span style={{ fontWeight: 500 }}>{getTwitchUsername(user)}</span>
+                    </Link>
                 )}
 
                 {/* Mobile nav links */}
                 <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <div style={{ padding: '0 0 1rem 0' }}>
+                        <UserSearch />
+                    </div>
                     {navLinks.map(link => (
                         <Link
                             key={link.href}

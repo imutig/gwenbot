@@ -49,6 +49,7 @@ export async function POST(request: Request) {
                 solution: solution || puzzle || '000000000000000000000000000000000000000000000000000000000000000000000000000000000',
                 status: 'finished',
                 winner_id: playerId,
+                host_id: playerId,
                 time_seconds,
                 finished_at: new Date().toISOString()
             })

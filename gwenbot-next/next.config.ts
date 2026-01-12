@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
         hostname: 'static-cdn.jtvnw.net',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
+        pathname: '/**',
+      },
     ],
   },
 };

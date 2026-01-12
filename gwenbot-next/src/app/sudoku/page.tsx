@@ -150,6 +150,9 @@ export default function SudokuPage() {
     // Pause state (solo mode only)
     const [isPaused, setIsPaused] = useState(false)
 
+    // Track last error to prevent counting same repeated error
+    const lastErrorRef = useRef<{ cell: number; value: number } | null>(null)
+
     // Battle Royale specific states
     const [isEliminated, setIsEliminated] = useState(false)
     const [myBRRank, setMyBRRank] = useState<number | null>(null)
@@ -162,6 +165,10 @@ export default function SudokuPage() {
 
     // Lobby system states
     const [lobbies, setLobbies] = useState<Lobby[]>([])
+
+    // Ghost / Time Attack Mode
+    const [targetTime, setTargetTime] = useState<number | null>(null)
+    const [targetUser, setTargetUser] = useState<string | null>(null)
 
     // Flag to prevent grid reset when game is already initialized
     const gameInitializedRef = useRef(false)
@@ -203,6 +210,19 @@ export default function SudokuPage() {
             if (interval) clearInterval(interval)
         }
     }, [isTimerRunning, isPaused])
+
+    // Auto-pause when user leaves the page (solo mode only)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            // Only auto-pause in solo mode (no challenger, not BR)
+            if (document.hidden && gameState.status === 'playing' && !gameState.challenger && !gameState.isBattleRoyale) {
+                setIsPaused(true)
+            }
+        }
+
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }, [gameState.status, gameState.challenger, gameState.isBattleRoyale])
 
     // Keyboard input effect
     useEffect(() => {
@@ -257,10 +277,55 @@ export default function SudokuPage() {
     }, [gameState.status, selectedCell, originalPuzzle, historyIndex, history])
 
     // Check for active game on load (wait for user to be loaded)
+    // Check for active game on load (wait for user to be loaded)
     useEffect(() => {
-        if (user.username) {
-            checkGameStatus()
+        const initGame = async () => {
+            if (!user.username) return
+
+            // Check if we are loading a replay (Ghost/Challenge Mode)
+            const searchParams = new URLSearchParams(window.location.search)
+            const sourceId = searchParams.get('sourceId')
+
+            if (sourceId && !gameInitializedRef.current) {
+                setLoading(true)
+                try {
+                    const res = await fetch(`/api/sudoku/game/${sourceId}`)
+                    const data = await res.json()
+
+                    if (data.game) {
+                        // Start solo game with this puzzle
+                        setGameState({
+                            status: 'playing',
+                            puzzle: data.game.puzzle,
+                            solution: data.game.solution
+                        })
+                        setTimer(0)
+                        setHistory([])
+                        setHistoryIndex(-1)
+                        setIsTimerRunning(true)
+
+                        const puzzleArray = data.game.puzzle.split('').map((c: string) => parseInt(c) || 0)
+                        setGrid(puzzleArray)
+                        setOriginalPuzzle(puzzleArray)
+
+                        // Set ghost data
+                        setTargetTime(data.game.targetTime)
+                        setTargetUser(data.game.targetUser)
+                        setMessage(`⚡ Défi temps vs ${data.game.targetUser} (${formatTime(data.game.targetTime)})`)
+
+                        gameInitializedRef.current = true
+                    }
+                } catch (error) {
+                    console.error('Error loading replay:', error)
+                } finally {
+                    setLoading(false)
+                }
+            } else {
+                checkGameStatus()
+            }
         }
+
+        initGame()
     }, [user.username])
 
     const checkGameStatus = useCallback(async () => {
@@ -757,8 +822,29 @@ export default function SudokuPage() {
         if (originalPuzzle[selectedCell] !== 0) return // Can't edit original cells
         if (gameState.status === 'finished') return // Game already ended
 
-        // Check if this is an error (wrong number placed)
         const solution = gameState.solution
+
+        // PROTECTION 1: Don't allow modifying a cell that already has the correct value
+        if (solution && grid[selectedCell] !== 0) {
+            const currentValue = grid[selectedCell]
+            const correctValue = parseInt(solution[selectedCell])
+            if (currentValue === correctValue && num !== 0) {
+                // Cell already has correct value, don't allow changing it
+                console.log('[Sudoku] Cell already correct, ignoring input')
+                return
+            }
+        }
+
+        // PROTECTION 2: Don't allow placing a digit if all 9 occurrences are already on the grid
+        if (num !== 0) {
+            const digitCount = grid.filter(v => v === num).length
+            if (digitCount >= 9) {
+                console.log('[Sudoku] All 9 occurrences of', num, 'already placed, ignoring')
+                return
+            }
+        }
+
+        // Check if this is an error (wrong number placed)
         let isError = false
         let newErrorCount = errorCount
 
@@ -769,9 +855,20 @@ export default function SudokuPage() {
             console.log('[Sudoku Debug] Checking error - correctValue:', correctValue, 'entered:', num, 'isError:', num !== correctValue)
             if (num !== correctValue) {
                 isError = true
-                newErrorCount = errorCount + 1
-                setErrorCount(newErrorCount)
-                console.log('[Sudoku Debug] Error detected! newErrorCount:', newErrorCount)
+
+                // PROTECTION 3: Only count one error for repeated mistakes on same cell with same value
+                const isSameError = lastErrorRef.current?.cell === selectedCell && lastErrorRef.current?.value === num
+                if (!isSameError) {
+                    newErrorCount = errorCount + 1
+                    setErrorCount(newErrorCount)
+                    lastErrorRef.current = { cell: selectedCell, value: num }
+                    console.log('[Sudoku Debug] Error detected! newErrorCount:', newErrorCount)
+                } else {
+                    console.log('[Sudoku Debug] Same error repeated, not counting again')
+                }
+            } else {
+                // Correct value placed, reset last error tracking
+                lastErrorRef.current = null
             }
         }
 
@@ -1064,7 +1161,11 @@ export default function SudokuPage() {
                     const isThickRight = col === 2 || col === 5
                     const isThickBottom = row === 2 || row === 5
                     const { isHighlighted, isSameNumber, isConflictingWithSelected } = getCellHighlight(i, value)
-                    const isError = !isOriginal && hasConflict(i, value)
+
+                    // Check if cell has wrong value (compare against solution, not just conflicts)
+                    const hasConflictError = !isOriginal && hasConflict(i, value)
+                    const isWrongValue = !isOriginal && value !== 0 && gameState.solution && parseInt(gameState.solution[i]) !== value
+                    const isError = hasConflictError || isWrongValue
 
                     // Background color logic
                     let bgColor = 'var(--bg-base)'
@@ -2059,6 +2160,53 @@ export default function SudokuPage() {
                 )}
 
                 {renderGameControls()}
+
+                {/* Live Timer & Ghost UI */}
+                {gameState.status === 'playing' && (
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: '1.5rem',
+                        marginBottom: '1rem',
+                        background: 'var(--bg-card)',
+                        padding: '0.5rem 1.5rem',
+                        borderRadius: '20px',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+                    }}>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}>
+                            {formatTime(timer)}
+                        </div>
+
+                        {/* Ghost Mode UI */}
+                        {targetTime !== null && targetUser && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                borderLeft: '1px solid var(--border-color)',
+                                paddingLeft: '1.5rem'
+                            }}>
+                                <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                                    vs {targetUser}:
+                                </span>
+                                <span style={{
+                                    fontWeight: 700,
+                                    color: timer < targetTime ? '#22c55e' : '#ef4444',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                }}>
+                                    {timer < targetTime ? '-' : '+'}{formatTime(Math.abs(timer - targetTime))}
+                                </span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    (Cible: {formatTime(targetTime)})
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {renderGrid()}
                 {gameState.status === 'playing' && !isEliminated && !hasBRFinished && renderNumberPad()}
 
