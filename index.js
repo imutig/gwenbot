@@ -561,13 +561,19 @@ async function handleMessage(msg) {
 
             try {
                 // Find any active Pictionary game
-                const currentRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/pictionary/current`);
+                const currentRes = await fetch(`${process.env.API_BASE_URL || 'http://localhost:3000'}/api/pictionary/current`, { cache: 'no-store' });
                 const currentData = await currentRes.json();
 
-                console.log(`[PICTIONARY BOT] Current game:`, currentData);
+                console.log(`[PICTIONARY BOT] Current game:`, JSON.stringify(currentData, null, 2));
 
                 if (!currentData.active || !currentData.game) {
+                    console.log(`[PICTIONARY BOT] ❌ REJECT: No active game (active=${currentData.active}, game=${!!currentData.game})`);
                     twitchClient.say(msg.channel, `@${msg.username} Pas de partie Pictionary en cours !`);
+                    return;
+                }
+
+                if (!currentData.game.hasWord) {
+                    console.log(`[PICTIONARY BOT] ❌ REJECT: Game active but no word set yet (drawer is choosing)`);
                     return;
                 }
 
@@ -581,14 +587,17 @@ async function handleMessage(msg) {
                 });
                 const guessData = await guessRes.json();
 
-                console.log(`[PICTIONARY BOT] Guess result:`, guessData);
+                console.log(`[PICTIONARY BOT] Guess result:`, JSON.stringify(guessData, null, 2));
 
                 if (guessData.correct) {
+                    console.log(`[PICTIONARY BOT] ✅ CORRECT! Word: "${guessData.word}", Points: ${guessData.points}`);
                     twitchClient.say(msg.channel, `🎉 BRAVO @${msg.username} ! Le mot était "${guessData.word}" ! +${guessData.points} points 🎉`);
+                } else {
+                    console.log(`[PICTIONARY BOT] ❌ WRONG: message="${guessData.message || 'no message'}", normalizedGuess="${guessData.normalizedGuess || 'N/A'}"`);
                 }
                 // For wrong guesses, don't respond - too spammy
             } catch (error) {
-                console.error('Pictionary guess error:', error);
+                console.error('[PICTIONARY BOT] Error:', error);
             }
             return;
         }

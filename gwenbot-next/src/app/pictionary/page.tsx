@@ -85,6 +85,8 @@ export default function PictionaryPage() {
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
     const [canvasData, setCanvasData] = useState<string>('')
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+    const lastWordFetchRef = useRef<number>(0)
+    const [isWordHidden, setIsWordHidden] = useState(false)
 
     // Fetch available lobbies
     const fetchLobbies = async () => {
@@ -193,7 +195,11 @@ export default function PictionaryPage() {
 
             // If we're the drawer and no word selected, show word modal
             if (data.isDrawer && !data.currentWord && data.status === 'playing') {
-                fetchWordChoices()
+                // Throttle word choice fetching to slow down the loop (every 4s instead of 2s)
+                if (Date.now() - lastWordFetchRef.current > 4000) {
+                    fetchWordChoices()
+                    lastWordFetchRef.current = Date.now()
+                }
             }
         } catch (error) {
             console.error('Error polling status:', error)
@@ -702,7 +708,25 @@ export default function PictionaryPage() {
                                 </span>
                                 <span>
                                     {gameState.isDrawer
-                                        ? `Mot: ${gameState.currentWord || '???'}`
+                                        ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <span>Mot: {isWordHidden ? '••••••' : (gameState.currentWord || '???')}</span>
+                                                <button
+                                                    onClick={() => setIsWordHidden(!isWordHidden)}
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        fontSize: '1.2rem',
+                                                        padding: '0 4px',
+                                                        opacity: 0.7
+                                                    }}
+                                                    title={isWordHidden ? "Afficher le mot" : "Cacher le mot"}
+                                                >
+                                                    {isWordHidden ? '👁️' : '🙈'}
+                                                </button>
+                                            </div>
+                                        )
                                         : `${gameState.currentDrawer?.username} dessine...`
                                     }
                                 </span>
