@@ -9,7 +9,7 @@ const MAX_ATTEMPTS = 8
 const KEYBOARD_ROWS = [
     ['A', 'Z', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['Q', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M'],
-    ['ENTER', 'W', 'X', 'C', 'V', 'B', 'N', '⌫']
+    ['ENTER', 'W', 'X', 'C', 'V', 'B', 'N', '-', '⌫']
 ]
 
 type LetterState = 'correct' | 'present' | 'absent' | 'empty' | 'tbd'
@@ -378,7 +378,7 @@ export default function GwendlePage() {
             submitGuess()
         } else if (key === '⌫') {
             setCurrentGuess(prev => prev.slice(0, -1))
-        } else if (currentGuess.length < wordLength && /^[A-Z]$/.test(key)) {
+        } else if (currentGuess.length < wordLength && /^[A-Z-]$/.test(key)) {
             setCurrentGuess(prev => prev + key)
         }
     }, [currentGuess, gameState, wordLength])
@@ -388,6 +388,7 @@ export default function GwendlePage() {
         const handler = (e: KeyboardEvent) => {
             if (e.key === 'Enter') handleKey('ENTER')
             else if (e.key === 'Backspace') handleKey('⌫')
+            else if (e.key === '-') handleKey('-')
             else if (/^[a-zA-Z]$/.test(e.key)) handleKey(e.key.toUpperCase())
         }
         window.addEventListener('keydown', handler)

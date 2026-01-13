@@ -27,20 +27,27 @@ async function findMapillaryImage(): Promise<{
 
     for (let i = 0; i < maxAttempts; i++) {
         const location = shuffled[i]
-        console.log(`[GwenGuessr] Trying ${location.city}, ${location.country} (attempt ${i + 1}/${maxAttempts})`)
+
+        // Add random offset to avoid always getting city center images
+        // Offset range of ~10km in each direction for more variety
+        const offsetRange = 0.1 // ~10km
+        const randomLat = location.lat + (Math.random() - 0.5) * offsetRange
+        const randomLng = location.lng + (Math.random() - 0.5) * offsetRange
+
+        console.log(`[GwenGuessr] Trying ${location.city}, ${location.country} (attempt ${i + 1}/${maxAttempts}) with offset [${randomLat.toFixed(4)}, ${randomLng.toFixed(4)}]`)
 
         try {
-            // Use moderate bbox - cities are well-mapped (0.03 degrees ~ 3km)
-            const bboxSize = 0.03
-            const bbox = `${location.lng - bboxSize},${location.lat - bboxSize},${location.lng + bboxSize},${location.lat + bboxSize}`
+            // Larger bbox for more variety (~5km radius)
+            const bboxSize = 0.05
+            const bbox = `${randomLng - bboxSize},${randomLat - bboxSize},${randomLng + bboxSize},${randomLat + bboxSize}`
 
             const response = await fetch(
-                `https://graph.mapillary.com/images?fields=id,thumb_2048_url,computed_geometry&bbox=${bbox}&limit=20`,
+                `https://graph.mapillary.com/images?fields=id,thumb_2048_url,computed_geometry&bbox=${bbox}&limit=50`,
                 {
                     headers: {
                         'Authorization': `OAuth ${MAPILLARY_ACCESS_TOKEN}`
                     },
-                    signal: AbortSignal.timeout(4000)
+                    signal: AbortSignal.timeout(5000)
                 }
             )
 
@@ -51,15 +58,15 @@ async function findMapillaryImage(): Promise<{
 
             const data = await response.json()
             if (!data.data || data.data.length === 0) {
-                console.log(`No images found in ${location.city}, trying next...`)
+                console.log(`No images found in ${location.city} (offset area), trying next...`)
                 continue
             }
 
-            // Success! Pick a random image
+            // Success! Pick a random image from the results
             const randomImage = data.data[Math.floor(Math.random() * data.data.length)]
-            const coords = randomImage.computed_geometry?.coordinates || [location.lng, location.lat]
+            const coords = randomImage.computed_geometry?.coordinates || [randomLng, randomLat]
 
-            console.log(`[GwenGuessr] Found image ${randomImage.id} in ${location.city}, ${location.country}`)
+            console.log(`[GwenGuessr] Found image ${randomImage.id} in ${location.city}, ${location.country} (${data.data.length} images available)`)
             return {
                 imageId: randomImage.id,
                 imageUrl: randomImage.thumb_2048_url,

@@ -122,6 +122,8 @@ export default function GwenGuessrHostPage() {
     const [status, setStatus] = useState<GameStatus | null>(null)
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState(false)
+    const [searchingImage, setSearchingImage] = useState(false)
+    const [searchMessage, setSearchMessage] = useState('')
     const [roundResult, setRoundResult] = useState<RoundResult | null>(null)
     const [totalRounds, setTotalRounds] = useState(5)
     const [roundDuration, setRoundDuration] = useState(60)
@@ -129,6 +131,18 @@ export default function GwenGuessrHostPage() {
     const [ignoredGameId, setIgnoredGameId] = useState<number | null>(null)
     const ignoredGameIdRef = useRef<number | null>(null)
     const { showToast } = useToast()
+
+    // Fun search messages to cycle through
+    const searchMessages = [
+        "🌍 Exploration du monde...",
+        "🔍 Recherche d'un lieu mystérieux...",
+        "📸 Analyse des panoramas...",
+        "🗺️ Scan des continents...",
+        "✨ Préparation de la surprise...",
+        "🎯 Calibration des coordonnées...",
+        "🛰️ Connexion aux satellites...",
+        "🏙️ Survol des villes...",
+    ]
 
     // Sync ref with state
     useEffect(() => {
@@ -179,6 +193,30 @@ export default function GwenGuessrHostPage() {
         }
     }, [])
 
+    // Inject global keyframes for search animations
+    useEffect(() => {
+        const styleId = 'gwenguessr-search-animations'
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style')
+            style.id = styleId
+            style.textContent = `
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                @keyframes fadeInOut {
+                    0%, 100% { opacity: 0.5; }
+                    50% { opacity: 1; }
+                }
+                @keyframes bounce {
+                    0%, 80%, 100% { transform: translateY(0); }
+                    40% { transform: translateY(-10px); }
+                }
+            `
+            document.head.appendChild(style)
+        }
+    }, [])
+
     // Create new game
     const handleCreateGame = async () => {
         setActionLoading(true)
@@ -211,10 +249,20 @@ export default function GwenGuessrHostPage() {
     // ... (omitted code)
 
 
-    // Start next round
+    // Start next round with visual feedback
     const handleStartRound = async () => {
         setActionLoading(true)
         setRoundResult(null)
+        setSearchingImage(true)
+
+        // Start cycling through search messages
+        let messageIndex = 0
+        setSearchMessage(searchMessages[0])
+        const messageInterval = setInterval(() => {
+            messageIndex = (messageIndex + 1) % searchMessages.length
+            setSearchMessage(searchMessages[messageIndex])
+        }, 1500)
+
         try {
             const res = await fetch('/api/gwenguessr/start-round', {
                 method: 'POST'
@@ -230,6 +278,8 @@ export default function GwenGuessrHostPage() {
         } catch (error) {
             showToast('Erreur lancement round', 'error')
         } finally {
+            clearInterval(messageInterval)
+            setSearchingImage(false)
             setActionLoading(false)
         }
     }
@@ -261,6 +311,21 @@ export default function GwenGuessrHostPage() {
         return (
             <div className="animate-slideIn" style={{ textAlign: 'center', padding: '4rem' }}>
                 <div style={{ animation: 'pulse 1.5s infinite' }}>Chargement...</div>
+                {/* Global keyframes for search animations */}
+                <style>{`
+                    @keyframes spin {
+                        from { transform: rotate(0deg); }
+                        to { transform: rotate(360deg); }
+                    }
+                    @keyframes fadeInOut {
+                        0%, 100% { opacity: 0.5; }
+                        50% { opacity: 1; }
+                    }
+                    @keyframes bounce {
+                        0%, 80%, 100% { transform: translateY(0); }
+                        40% { transform: translateY(-10px); }
+                    }
+                `}</style>
             </div>
         )
     }
@@ -298,6 +363,63 @@ export default function GwenGuessrHostPage() {
                             <PlusIcon />
                             {actionLoading ? 'Création...' : 'Créer la partie'}
                         </FancyButton>
+                    </div>
+                ) : searchingImage ? (
+                    /* Animated search overlay */
+                    <div className="glass-card" style={{ padding: '3rem', textAlign: 'center' }}>
+                        <div style={{
+                            fontSize: '4rem',
+                            marginBottom: '1.5rem',
+                            animation: 'spin 3s linear infinite',
+                        }}>
+                            🌍
+                        </div>
+                        <h2 style={{
+                            fontSize: '1.25rem',
+                            marginBottom: '0.5rem',
+                            color: 'var(--pink-main)',
+                            fontWeight: 600
+                        }}>
+                            Recherche d&apos;une localisation...
+                        </h2>
+                        <p style={{
+                            fontSize: '1rem',
+                            color: 'var(--text-muted)',
+                            animation: 'fadeInOut 1.5s ease-in-out infinite',
+                            minHeight: '1.5rem'
+                        }}>
+                            {searchMessage}
+                        </p>
+                        <div style={{
+                            marginTop: '1.5rem',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            gap: '0.5rem'
+                        }}>
+                            {[0, 1, 2].map((i) => (
+                                <div key={i} style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    background: 'var(--pink-main)',
+                                    animation: `bounce 1.4s ease-in-out ${i * 0.2}s infinite`
+                                }} />
+                            ))}
+                        </div>
+                        <style>{`
+                            @keyframes spin {
+                                from { transform: rotate(0deg); }
+                                to { transform: rotate(360deg); }
+                            }
+                            @keyframes fadeInOut {
+                                0%, 100% { opacity: 0.5; }
+                                50% { opacity: 1; }
+                            }
+                            @keyframes bounce {
+                                0%, 80%, 100% { transform: translateY(0); }
+                                40% { transform: translateY(-10px); }
+                            }
+                        `}</style>
                     </div>
                 ) : (
                     <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
@@ -413,14 +535,42 @@ export default function GwenGuessrHostPage() {
                     <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '1rem' }}>
                         {/* Lobby - Start first round */}
                         {status.game.status === 'lobby' && (
-                            <FancyButton
-                                onClick={handleStartRound}
-                                disabled={actionLoading}
-                                style={{ width: '100%', justifyContent: 'center' }}
-                            >
-                                <PlayIcon />
-                                {actionLoading ? 'Lancement...' : 'Lancer le Round 1'}
-                            </FancyButton>
+                            searchingImage ? (
+                                /* Animated search overlay */
+                                <div style={{ textAlign: 'center', padding: '1rem' }}>
+                                    <div style={{
+                                        fontSize: '3rem',
+                                        marginBottom: '1rem',
+                                        animation: 'spin 3s linear infinite',
+                                    }}>
+                                        🌍
+                                    </div>
+                                    <p style={{
+                                        fontSize: '1rem',
+                                        color: 'var(--pink-main)',
+                                        fontWeight: 600,
+                                        marginBottom: '0.5rem'
+                                    }}>
+                                        Recherche d&apos;une localisation...
+                                    </p>
+                                    <p style={{
+                                        fontSize: '0.9rem',
+                                        color: 'var(--text-muted)',
+                                        animation: 'fadeInOut 1.5s ease-in-out infinite'
+                                    }}>
+                                        {searchMessage}
+                                    </p>
+                                </div>
+                            ) : (
+                                <FancyButton
+                                    onClick={handleStartRound}
+                                    disabled={actionLoading}
+                                    style={{ width: '100%', justifyContent: 'center' }}
+                                >
+                                    <PlayIcon />
+                                    {actionLoading ? 'Lancement...' : 'Lancer le Round 1'}
+                                </FancyButton>
+                            )
                         )}
 
                         {/* Playing - Show image preview + End round button */}
@@ -544,14 +694,42 @@ export default function GwenGuessrHostPage() {
                                 )}
 
                                 {status.game.status === 'between_rounds' ? (
-                                    <FancyButton
-                                        onClick={handleStartRound}
-                                        disabled={actionLoading}
-                                        style={{ width: '100%', justifyContent: 'center' }}
-                                    >
-                                        <SkipIcon />
-                                        {actionLoading ? 'Lancement...' : `Lancer le Round ${status.game.current_round + 1}`}
-                                    </FancyButton>
+                                    searchingImage ? (
+                                        /* Animated search overlay for between rounds */
+                                        <div style={{ textAlign: 'center', padding: '1rem' }}>
+                                            <div style={{
+                                                fontSize: '3rem',
+                                                marginBottom: '1rem',
+                                                animation: 'spin 3s linear infinite',
+                                            }}>
+                                                🌍
+                                            </div>
+                                            <p style={{
+                                                fontSize: '1rem',
+                                                color: 'var(--pink-main)',
+                                                fontWeight: 600,
+                                                marginBottom: '0.5rem'
+                                            }}>
+                                                Recherche d&apos;une localisation...
+                                            </p>
+                                            <p style={{
+                                                fontSize: '0.9rem',
+                                                color: 'var(--text-muted)',
+                                                animation: 'fadeInOut 1.5s ease-in-out infinite'
+                                            }}>
+                                                {searchMessage}
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <FancyButton
+                                            onClick={handleStartRound}
+                                            disabled={actionLoading}
+                                            style={{ width: '100%', justifyContent: 'center' }}
+                                        >
+                                            <SkipIcon />
+                                            {actionLoading ? 'Lancement...' : `Lancer le Round ${status.game.current_round + 1}`}
+                                        </FancyButton>
+                                    )
                                 ) : (
                                     <div style={{ textAlign: 'center', marginTop: '2rem' }}>
                                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
