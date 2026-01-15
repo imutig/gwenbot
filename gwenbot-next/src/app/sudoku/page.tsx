@@ -170,6 +170,30 @@ export default function SudokuPage() {
     const [targetTime, setTargetTime] = useState<number | null>(null)
     const [targetUser, setTargetUser] = useState<string | null>(null)
 
+    // GwenMode - Clean blue theme
+    const [gwenMode, setGwenMode] = useState(false)
+
+    // Track completed rows/cols/boxes for animation
+    const [completedSections, setCompletedSections] = useState<Set<string>>(new Set())
+    const [animatingSections, setAnimatingSections] = useState<Set<string>>(new Set())
+
+    // GwenMode color palette (blue/white theme from screenshot)
+    const gwenColors = {
+        bgBase: '#f5f8fc',
+        bgCell: '#ffffff',
+        bgCellOriginal: '#e8eef5',
+        bgSelected: '#4a6fa5',
+        bgHighlight: '#d9e4f0',
+        bgSameNumber: '#b8cde8',
+        textPrimary: '#2c4a6e',
+        textNumber: '#4a6fa5',
+        textOriginal: '#1a365d',
+        borderMain: '#2c4a6e',
+        borderLight: '#c5d4e8',
+        accent: '#4a6fa5',
+        completedBg: '#a8d5ba'
+    }
+
     // Flag to prevent grid reset when game is already initialized
     const gameInitializedRef = useRef(false)
 
@@ -1099,6 +1123,114 @@ export default function SudokuPage() {
         transition: 'all 0.2s'
     })
 
+    // Check if a row/column/box is completely and correctly filled
+    const checkCompletedSections = useCallback(() => {
+        if (!gameState.solution || !gwenMode) return
+
+        const solution = gameState.solution.split('').map(Number)
+        const newCompleted = new Set<string>()
+        const newAnimating = new Set<string>()
+
+        // Check rows
+        for (let row = 0; row < 9; row++) {
+            let isComplete = true
+            for (let col = 0; col < 9; col++) {
+                const idx = row * 9 + col
+                if (grid[idx] !== solution[idx]) {
+                    isComplete = false
+                    break
+                }
+            }
+            if (isComplete) {
+                const key = `row-${row}`
+                newCompleted.add(key)
+                if (!completedSections.has(key)) {
+                    newAnimating.add(key)
+                }
+            }
+        }
+
+        // Check columns
+        for (let col = 0; col < 9; col++) {
+            let isComplete = true
+            for (let row = 0; row < 9; row++) {
+                const idx = row * 9 + col
+                if (grid[idx] !== solution[idx]) {
+                    isComplete = false
+                    break
+                }
+            }
+            if (isComplete) {
+                const key = `col-${col}`
+                newCompleted.add(key)
+                if (!completedSections.has(key)) {
+                    newAnimating.add(key)
+                }
+            }
+        }
+
+        // Check 3x3 boxes
+        for (let boxRow = 0; boxRow < 3; boxRow++) {
+            for (let boxCol = 0; boxCol < 3; boxCol++) {
+                let isComplete = true
+                for (let r = 0; r < 3; r++) {
+                    for (let c = 0; c < 3; c++) {
+                        const idx = (boxRow * 3 + r) * 9 + (boxCol * 3 + c)
+                        if (grid[idx] !== solution[idx]) {
+                            isComplete = false
+                            break
+                        }
+                    }
+                    if (!isComplete) break
+                }
+                if (isComplete) {
+                    const key = `box-${boxRow}-${boxCol}`
+                    newCompleted.add(key)
+                    if (!completedSections.has(key)) {
+                        newAnimating.add(key)
+                    }
+                }
+            }
+        }
+
+        setCompletedSections(newCompleted)
+
+        // Clear animation after 600ms
+        if (newAnimating.size > 0) {
+            setAnimatingSections(newAnimating)
+            setTimeout(() => setAnimatingSections(new Set()), 600)
+        }
+    }, [grid, gameState.solution, gwenMode, completedSections])
+
+    // Check completed sections whenever grid changes
+    useEffect(() => {
+        if (gwenMode && gameState.status === 'playing') {
+            checkCompletedSections()
+        }
+    }, [grid, gwenMode, gameState.status, checkCompletedSections])
+
+    // Helper to check if a cell is in a completed/animating section
+    const getCellSectionState = (index: number) => {
+        const row = Math.floor(index / 9)
+        const col = index % 9
+        const boxRow = Math.floor(row / 3)
+        const boxCol = Math.floor(col / 3)
+
+        const inCompletedRow = completedSections.has(`row-${row}`)
+        const inCompletedCol = completedSections.has(`col-${col}`)
+        const inCompletedBox = completedSections.has(`box-${boxRow}-${boxCol}`)
+
+        const isAnimating =
+            animatingSections.has(`row-${row}`) ||
+            animatingSections.has(`col-${col}`) ||
+            animatingSections.has(`box-${boxRow}-${boxCol}`)
+
+        return {
+            isCompleted: inCompletedRow || inCompletedCol || inCompletedBox,
+            isAnimating
+        }
+    }
+
     // Render Sudoku grid
     const renderGrid = () => (
         <div style={{ position: 'relative' }}>
@@ -1143,13 +1275,13 @@ export default function SudokuPage() {
                     display: 'grid',
                     gridTemplateColumns: 'repeat(9, 1fr)',
                     gap: '2px',
-                    background: 'var(--border-color)',
+                    background: gwenMode ? gwenColors.borderLight : 'var(--border-color)',
                     borderRadius: '12px',
                     overflow: 'hidden',
                     width: '100%',
                     maxWidth: '540px',
                     margin: '0 auto 1rem',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                    boxShadow: gwenMode ? '0 4px 20px rgba(44, 74, 110, 0.15)' : '0 4px 20px rgba(0,0,0,0.1)',
                     outline: 'none',
                     filter: isPaused && !gameState.challenger && !gameState.isBattleRoyale ? 'blur(10px)' : 'none'
                 }}>
@@ -1167,23 +1299,58 @@ export default function SudokuPage() {
                     const isWrongValue = !isOriginal && value !== 0 && gameState.solution && parseInt(gameState.solution[i]) !== value
                     const isError = hasConflictError || isWrongValue
 
-                    // Background color logic
-                    let bgColor = 'var(--bg-base)'
-                    if (isSelected && isError) bgColor = 'rgba(239, 68, 68, 0.4)'
-                    else if (isSelected) bgColor = 'var(--pink-accent)'
-                    else if (isConflictingWithSelected) bgColor = 'rgba(239, 68, 68, 0.25)'
-                    else if (isError) bgColor = 'rgba(239, 68, 68, 0.2)'
-                    else if (isSameNumber) bgColor = 'rgba(236, 72, 153, 0.3)'
-                    else if (isHighlighted) bgColor = 'rgba(236, 72, 153, 0.1)'
-                    else if (isOriginal) bgColor = 'var(--bg-card)'
+                    // GwenMode: check if cell is in completed section
+                    const { isCompleted: inCompletedSection, isAnimating: isAnimatingSection } = gwenMode ? getCellSectionState(i) : { isCompleted: false, isAnimating: false }
 
-                    // Text color logic
-                    let textColor = 'var(--pink-accent)'
-                    if (isSelected && isError) textColor = 'white'
-                    else if (isSelected) textColor = 'white'
-                    else if (isConflictingWithSelected || isError) textColor = '#dc2626'
-                    else if (isSameNumber) textColor = 'var(--pink-accent)'
-                    else if (isOriginal) textColor = 'var(--text-primary)'
+                    // Background color logic - GwenMode vs Normal
+                    let bgColor: string
+                    let textColor: string
+                    let borderMainColor: string
+
+                    if (gwenMode) {
+                        // GwenMode colors (blue/white theme)
+                        borderMainColor = gwenColors.borderMain
+
+                        // Background
+                        if (isAnimatingSection) bgColor = gwenColors.completedBg
+                        else if (isSelected && isError) bgColor = 'rgba(239, 68, 68, 0.4)'
+                        else if (isSelected) bgColor = gwenColors.bgSelected
+                        else if (isConflictingWithSelected) bgColor = 'rgba(239, 68, 68, 0.25)'
+                        else if (isError) bgColor = 'rgba(239, 68, 68, 0.2)'
+                        else if (isSameNumber) bgColor = gwenColors.bgSameNumber
+                        else if (isHighlighted) bgColor = gwenColors.bgHighlight
+                        else if (inCompletedSection) bgColor = '#e8f5e9'
+                        else if (isOriginal) bgColor = gwenColors.bgCellOriginal
+                        else bgColor = gwenColors.bgCell
+
+                        // Text color
+                        if (isSelected && isError) textColor = 'white'
+                        else if (isSelected) textColor = 'white'
+                        else if (isConflictingWithSelected || isError) textColor = '#dc2626'
+                        else if (isSameNumber) textColor = gwenColors.accent
+                        else if (isOriginal) textColor = gwenColors.textOriginal
+                        else textColor = gwenColors.textNumber
+                    } else {
+                        // Normal mode colors (pink theme)
+                        borderMainColor = 'var(--text-primary)'
+
+                        if (isSelected && isError) bgColor = 'rgba(239, 68, 68, 0.4)'
+                        else if (isSelected) bgColor = 'var(--pink-accent)'
+                        else if (isConflictingWithSelected) bgColor = 'rgba(239, 68, 68, 0.25)'
+                        else if (isError) bgColor = 'rgba(239, 68, 68, 0.2)'
+                        else if (isSameNumber) bgColor = 'rgba(236, 72, 153, 0.3)'
+                        else if (isHighlighted) bgColor = 'rgba(236, 72, 153, 0.1)'
+                        else if (isOriginal) bgColor = 'var(--bg-card)'
+                        else bgColor = 'var(--bg-base)'
+
+                        // Text color
+                        if (isSelected && isError) textColor = 'white'
+                        else if (isSelected) textColor = 'white'
+                        else if (isConflictingWithSelected || isError) textColor = '#dc2626'
+                        else if (isSameNumber) textColor = 'var(--pink-accent)'
+                        else if (isOriginal) textColor = 'var(--text-primary)'
+                        else textColor = 'var(--pink-accent)'
+                    }
 
                     return (
                         <div
@@ -1199,9 +1366,10 @@ export default function SudokuPage() {
                                 fontWeight: isOriginal || isSameNumber || isError ? 700 : 500,
                                 fontSize: 'clamp(1.2rem, 4vw, 1.8rem)',
                                 cursor: 'pointer',
-                                borderRight: isThickRight ? '3px solid var(--text-primary)' : undefined,
-                                borderBottom: isThickBottom ? '3px solid var(--text-primary)' : undefined,
-                                transition: 'background 0.15s ease'
+                                borderRight: isThickRight ? `3px solid ${gwenMode ? gwenColors.borderMain : 'var(--text-primary)'}` : undefined,
+                                borderBottom: isThickBottom ? `3px solid ${gwenMode ? gwenColors.borderMain : 'var(--text-primary)'}` : undefined,
+                                transition: 'background 0.15s ease, transform 0.2s ease',
+                                transform: isAnimatingSection ? 'scale(1.05)' : 'scale(1)'
                             }}
                         >
                             {value || ''}
@@ -2204,6 +2372,35 @@ export default function SudokuPage() {
                                 </span>
                             </div>
                         )}
+
+                        {/* GwenMode Toggle */}
+                        <button
+                            onClick={() => setGwenMode(!gwenMode)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '12px',
+                                border: `2px solid ${gwenMode ? gwenColors.accent : 'var(--border-color)'}`,
+                                background: gwenMode ? gwenColors.bgHighlight : 'transparent',
+                                color: gwenMode ? gwenColors.textPrimary : 'var(--text-muted)',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                marginLeft: 'auto'
+                            }}
+                            title="Activer/Désactiver GwenMode"
+                        >
+                            <span style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                background: gwenMode ? gwenColors.accent : 'var(--text-muted)'
+                            }} />
+                            GwenMode
+                        </button>
                     </div>
                 )}
 
