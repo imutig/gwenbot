@@ -16,11 +16,11 @@ const styles = `
   font-family: inherit;
   font-size: 15px;
   font-weight: 600;
-  color: #8B4558;
+  color: var(--fancy-btn-text, #8B4558);
   text-transform: uppercase;
   padding: 1.25em 2em;
-  background: #fff0f0;
-  border: 2px solid #b18597;
+  background: var(--fancy-btn-bg, #fff0f0);
+  border: 2px solid var(--fancy-btn-border, #b18597);
   border-radius: 0.75em;
   transform-style: preserve-3d;
   transition: transform 150ms cubic-bezier(0, 0, 0.58, 1), background 150ms cubic-bezier(0, 0, 0.58, 1);
@@ -35,30 +35,30 @@ const styles = `
   left: 0;
   right: 0;
   bottom: 0;
-  background: #f9c4d2;
+  background: var(--fancy-btn-shadow-bg, #f9c4d2);
   border-radius: inherit;
-  box-shadow: 0 0 0 2px #b18597, 0 0.625em 0 0 #ffe3e2;
+  box-shadow: 0 0 0 2px var(--fancy-btn-border, #b18597), 0 0.625em 0 0 var(--fancy-btn-shadow, #ffe3e2);
   transform: translate3d(0, 0.75em, -1em);
   transition: transform 150ms cubic-bezier(0, 0, 0.58, 1), box-shadow 150ms cubic-bezier(0, 0, 0.58, 1);
 }
 
 .fancy-btn:hover {
-  background: #ffe9e9;
+  background: var(--fancy-btn-hover, #ffe9e9);
   transform: translate(0, 0.25em);
 }
 
 .fancy-btn:hover::before {
-  box-shadow: 0 0 0 2px #b18597, 0 0.5em 0 0 #ffe3e2;
+  box-shadow: 0 0 0 2px var(--fancy-btn-border, #b18597), 0 0.5em 0 0 var(--fancy-btn-shadow, #ffe3e2);
   transform: translate3d(0, 0.5em, -1em);
 }
 
 .fancy-btn:active {
-  background: #ffe9e9;
+  background: var(--fancy-btn-hover, #ffe9e9);
   transform: translate(0em, 0.75em);
 }
 
 .fancy-btn:active::before {
-  box-shadow: 0 0 0 2px #b18597, 0 0 #ffe3e2;
+  box-shadow: 0 0 0 2px var(--fancy-btn-border, #b18597), 0 0 var(--fancy-btn-shadow, #ffe3e2);
   transform: translate3d(0, 0, -1em);
 }
 
@@ -84,17 +84,17 @@ const styles = `
 }
 
 .fancy-btn--xs::before {
-  box-shadow: 0 0 0 2px #b18597, 0 0.4em 0 0 #ffe3e2;
+  box-shadow: 0 0 0 2px var(--fancy-btn-border, #b18597), 0 0.4em 0 0 var(--fancy-btn-shadow, #ffe3e2);
   transform: translate3d(0, 0.5em, -1em);
 }
 
 .fancy-btn--xs:hover::before {
-  box-shadow: 0 0 0 2px #b18597, 0 0.3em 0 0 #ffe3e2;
+  box-shadow: 0 0 0 2px var(--fancy-btn-border, #b18597), 0 0.3em 0 0 var(--fancy-btn-shadow, #ffe3e2);
   transform: translate3d(0, 0.35em, -1em);
 }
 
 .fancy-btn--xs:active::before {
-  box-shadow: 0 0 0 2px #b18597, 0 0 #ffe3e2;
+  box-shadow: 0 0 0 2px var(--fancy-btn-border, #b18597), 0 0 var(--fancy-btn-shadow, #ffe3e2);
   transform: translate3d(0, 0, -1em);
 }
 

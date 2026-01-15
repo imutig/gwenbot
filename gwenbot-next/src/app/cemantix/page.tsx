@@ -7,24 +7,26 @@ import Loader from '@/components/ui/loader'
 
 const styles = `
   .cemantix-card {
-    background: rgba(255, 255, 255, 0.5);
+    background: var(--bg-card);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid var(--border-color);
     border-radius: 30px;
-    box-shadow: 0 8px 32px 0 rgba(255, 182, 193, 0.3);
+    box-shadow: 0 8px 32px 0 var(--shadow-color);
     width: 100%;
     max-width: 500px;
     overflow: hidden;
   }
-  .toggle-btn { transition: all 0.3s; background: transparent; }
+  .toggle-btn { transition: all 0.3s; background: transparent; color: var(--text-muted); }
   .toggle-btn.active { background-color: var(--pink-accent); color: white; }
   .leaderboard-item { transition: transform 0.2s; border-radius: 15px; }
-  .leaderboard-item:hover { transform: scale(1.02); background: rgba(255,255,255,0.6); }
+  .leaderboard-item:hover { transform: scale(1.02); background: var(--bg-card-hover); }
   .rank-badge { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 700; }
   .rank-1 { background: linear-gradient(45deg, #FFD700, #FDB931); color: white; }
   .rank-2 { background: linear-gradient(45deg, #C0C0C0, #E8E8E8); color: white; }
   .rank-3 { background: linear-gradient(45deg, #CD7F32, #E9967A); color: white; }
+  .cemantix-section { background: var(--bg-input); border-radius: 16px; padding: 0.75rem; }
+  .cemantix-inner-card { background: var(--bg-card); border-radius: 12px; padding: 0.5rem; text-align: center; }
 `
 
 // SVG Icons
@@ -226,46 +228,46 @@ export default function CemantixPage() {
                             />
                             <div style={{
                                 position: 'absolute', bottom: '-8px', right: '-8px',
-                                background: '#fce7f3', padding: '8px', borderRadius: '50%',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '1px solid white'
+                                background: 'var(--pink-pastel)', padding: '8px', borderRadius: '50%',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '1px solid var(--border-color)'
                             }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="#ec4899" stroke="none">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--pink-accent)" stroke="none">
                                     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
                                 </svg>
                             </div>
                         </div>
-                        <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#8B4558', marginBottom: '0.25rem' }}>
+                        <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                             Cemantix Leaderboard
                         </h1>
-                        <p style={{ fontSize: '0.875rem', color: 'rgba(190, 24, 93, 0.7)', fontWeight: 500 }}>@xsgwen</p>
+                        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontWeight: 500 }}>@xsgwen</p>
                     </div>
 
                     {/* Records Section */}
                     <div style={{ padding: '0 1.5rem', marginBottom: '1rem' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.4)', borderRadius: '16px', padding: '0.75rem' }}>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8B4558', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <div className="cemantix-section">
+                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                 <TrophyIcon /> Records de xsgwen
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                <div style={{ background: 'rgba(255,255,255,0.5)', borderRadius: '12px', padding: '0.5rem', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.75rem', color: 'rgba(219, 39, 119, 0.7)', marginBottom: '0.125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                                <div className="cemantix-inner-card">
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
                                         <span style={{ fontSize: '1rem' }}>🇫🇷</span> Cémantix
                                     </div>
-                                    <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#8B4558' }}>
+                                    <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                         {formatRecord(records?.fr?.alltime ?? null)}
                                     </div>
-                                    <div style={{ fontSize: '0.625rem', color: 'rgba(236, 72, 153, 0.6)' }}>
+                                    <div style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>
                                         mois: {formatRecord(records?.fr?.monthly ?? null)}
                                     </div>
                                 </div>
-                                <div style={{ background: 'rgba(255,255,255,0.5)', borderRadius: '12px', padding: '0.5rem', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.75rem', color: 'rgba(219, 39, 119, 0.7)', marginBottom: '0.125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                                <div className="cemantix-inner-card">
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.125rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
                                         <span style={{ fontSize: '1rem' }}>🇬🇧</span> Cemantle
                                     </div>
-                                    <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#8B4558' }}>
+                                    <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                         {formatRecord(records?.en?.alltime ?? null)}
                                     </div>
-                                    <div style={{ fontSize: '0.625rem', color: 'rgba(236, 72, 153, 0.6)' }}>
+                                    <div style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>
                                         mois: {formatRecord(records?.en?.monthly ?? null)}
                                     </div>
                                 </div>
@@ -275,7 +277,7 @@ export default function CemantixPage() {
 
                     {/* Toggle Tabs */}
                     <div style={{ padding: '0 1.5rem', marginBottom: '1rem' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.3)', padding: '0.25rem', borderRadius: '16px', display: 'flex', gap: '0.25rem' }}>
+                        <div className="cemantix-section" style={{ padding: '0.25rem', display: 'flex', gap: '0.25rem' }}>
                             <button
                                 className={`toggle-btn ${activeTab === 'session' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('session')}
@@ -306,23 +308,23 @@ export default function CemantixPage() {
                             loading ? (
                                 <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader size="sm" /></div>
                             ) : !sessionActive && sessionLeaderboard.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: '#f472b6', padding: '2rem' }}>
+                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                                     Aucune session en cours
                                 </p>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <div style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '0.85rem', color: sessionActive ? '#10b981' : '#f472b6' }}>
+                                    <div style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '0.85rem', color: sessionActive ? '#10b981' : 'var(--text-muted)' }}>
                                         {sessionActive ? `🟢 Session ${sessionLang === 'fr' ? '🇫🇷' : '🇬🇧'} en cours` : `Dernière session (${sessionLang === 'fr' ? '🇫🇷' : '🇬🇧'})`}
                                     </div>
                                     {sessionLeaderboard.map((entry: LeaderboardEntry, i: number) => (
                                         <div key={`${entry.user}-${i}`} className="leaderboard-item" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem' }}>
-                                            <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`} style={i >= 3 ? { background: 'rgba(255,255,255,0.5)' } : undefined}>
+                                            <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`} style={i >= 3 ? { background: 'var(--bg-card)' } : undefined}>
                                                 {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
                                             </div>
                                             <div style={{ flex: 1 }}>
-                                                <div style={{ fontWeight: 600, color: '#8B4558' }}>{entry.user}</div>
+                                                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{entry.user}</div>
                                             </div>
-                                            <div style={{ fontWeight: 700, color: '#ec4899' }}>{entry.points} pts</div>
+                                            <div style={{ fontWeight: 700, color: 'var(--pink-accent)' }}>{entry.points} pts</div>
                                         </div>
                                     ))}
                                 </div>
@@ -333,18 +335,18 @@ export default function CemantixPage() {
                             loading ? (
                                 <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}><Loader size="sm" /></div>
                             ) : globalLeaderboard.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: '#f472b6', padding: '2rem' }}>Aucune donnée</p>
+                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>Aucune donnée</p>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                     {globalLeaderboard.map((entry: LeaderboardEntry, i: number) => (
                                         <div key={`${entry.user}-${i}`} className="leaderboard-item" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem' }}>
-                                            <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`} style={i >= 3 ? { background: 'rgba(255,255,255,0.5)' } : undefined}>
+                                            <div className={`rank-badge ${i < 3 ? `rank-${i + 1}` : ''}`} style={i >= 3 ? { background: 'var(--bg-card)' } : undefined}>
                                                 {i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
                                             </div>
                                             <div style={{ flex: 1 }}>
-                                                <div style={{ fontWeight: 600, color: '#8B4558' }}>{entry.user}</div>
+                                                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{entry.user}</div>
                                             </div>
-                                            <div style={{ fontWeight: 700, color: '#ec4899' }}>{entry.points} pts</div>
+                                            <div style={{ fontWeight: 700, color: 'var(--pink-accent)' }}>{entry.points} pts</div>
                                         </div>
                                     ))}
                                 </div>
@@ -353,17 +355,17 @@ export default function CemantixPage() {
 
                         {activeTab === 'history' && (
                             history.length === 0 ? (
-                                <p style={{ textAlign: 'center', color: '#f472b6', padding: '2rem' }}>Aucun historique</p>
+                                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>Aucun historique</p>
                             ) : (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                     {history.map((entry, i) => (
-                                        <div key={`${entry.word}-${i}`} className="leaderboard-item" style={{ padding: '0.75rem', background: 'rgba(255,255,255,0.4)', borderRadius: '12px', position: 'relative' }}>
+                                        <div key={`${entry.word}-${i}`} className="leaderboard-item" style={{ padding: '0.75rem', background: 'var(--bg-input)', borderRadius: '12px', position: 'relative' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                                                <span style={{ fontWeight: 600, color: '#8B4558' }}>
+                                                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                                                     {entry.lang === 'fr' ? '🇫🇷' : '🇬🇧'} {entry.word || 'Mot inconnu'}
                                                 </span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <span style={{ fontSize: '0.75rem', color: 'rgba(236, 72, 153, 0.6)' }}>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                                         {entry.date ? new Date(entry.date).toLocaleDateString('fr-FR') : '-'}
                                                     </span>
                                                     {isAdmin && (
@@ -385,7 +387,7 @@ export default function CemantixPage() {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div style={{ fontSize: '0.75rem', color: '#f472b6' }}>
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                                 🏆 {entry.winner || 'Personne'} • {entry.guessCount || 0} essais • {entry.playerCount || 0} joueurs
                                             </div>
                                         </div>

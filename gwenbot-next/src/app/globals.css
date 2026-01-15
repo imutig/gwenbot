@@ -32,6 +32,54 @@
   /* UI */
   --border-color: rgba(255, 182, 193, 0.4);
   --shadow-color: rgba(255, 133, 192, 0.2);
+
+  /* Fancy Button */
+  --fancy-btn-text: #8B4558;
+  --fancy-btn-bg: #fff0f0;
+  --fancy-btn-hover: #ffe9e9;
+  --fancy-btn-border: #b18597;
+  --fancy-btn-shadow: #ffe3e2;
+  --fancy-btn-shadow-bg: #f9c4d2;
+}
+
+/* === Dark Mode Variables === */
+[data-theme="dark"] {
+  /* Background colors - soft dark with rose undertone */
+  --bg-base: #1a1520;
+  --bg-primary: radial-gradient(circle at center, #221a28 0%, #1a1520 100%);
+  --bg-card: rgba(45, 35, 50, 0.75);
+  --bg-card-hover: rgba(55, 45, 60, 0.85);
+  --bg-input: rgba(35, 28, 40, 0.8);
+  --bg-nav: rgba(26, 21, 32, 0.95);
+
+  /* Text colors - soft rose and cream */
+  --text-primary: #f5e6ea;
+  --text-secondary: #ffa8cc;
+  --text-muted: #b89aa6;
+
+  /* Pink palette - slightly softer in dark */
+  --pink-pastel: #d4a5be;
+  --pink-main: #f077aa;
+  --pink-dark: #d94e8a;
+  --pink-accent: #f590b8;
+  --pink-vibrant: #f077aa;
+
+  /* Flower colors - muted for dark mode */
+  --flower-1: rgba(212, 165, 190, 0.3);
+  --flower-2: rgba(240, 119, 170, 0.25);
+  --flower-3: rgba(217, 78, 138, 0.2);
+
+  /* UI */
+  --border-color: rgba(240, 119, 170, 0.2);
+  --shadow-color: rgba(240, 119, 170, 0.15);
+
+  /* Fancy Button - dark mode */
+  --fancy-btn-text: #f5e6ea;
+  --fancy-btn-bg: #2d232f;
+  --fancy-btn-hover: #3d2f42;
+  --fancy-btn-border: #8a6578;
+  --fancy-btn-shadow: #4a3550;
+  --fancy-btn-shadow-bg: #5c4055;
 }
 
 /* === Base Styles === */

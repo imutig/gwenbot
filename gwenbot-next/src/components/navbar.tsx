@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import FancyButton from '@/components/ui/fancy-button'
 import UserSearch from '@/components/user-search'
+import ThemeToggle from '@/components/ThemeToggle'
 
 import { getTwitchUsername } from '@/lib/auth-utils'
 
@@ -281,8 +282,9 @@ export default function Navbar() {
                     <UserSearch />
                 </div>
 
-                {/* Auth Section */}
+                {/* Theme Toggle & Auth Section */}
                 <div className="nav-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <ThemeToggle />
                     {user ? (
                         <>
                             <Link href={`/profile/${getTwitchUsername(user)}`} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none', color: 'inherit' }}>
@@ -360,20 +362,22 @@ export default function Navbar() {
                             boxShadow: '-4px 0 20px rgba(0,0,0,0.1)'
                         }}
                     >
-                        {/* Close button */}
-                        <button
-                            onClick={() => setMobileMenuOpen(false)}
-                            style={{
-                                alignSelf: 'flex-end',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '0.5rem',
-                                color: 'var(--text-primary)'
-                            }}
-                        >
-                            <HamburgerIcon isOpen={true} />
-                        </button>
+                        {/* Mobile menu header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <ThemeToggle />
+                            <button
+                                onClick={() => setMobileMenuOpen(false)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '0.5rem',
+                                    color: 'var(--text-primary)'
+                                }}
+                            >
+                                <HamburgerIcon isOpen={true} />
+                            </button>
+                        </div>
 
                         {/* User info in mobile */}
                         {user && (
