@@ -975,14 +975,13 @@ async function handleMessage(msg) {
         payload: { username, word, points }
     });
 
-    // If winner found
-    if (isWinner) {
+    // If winner found - store silently but don't end session
+    // Winner will be revealed when !cemantix stop is called
+    if (isWinner && !gameSession.found) {
         gameSession.found = true;
         gameSession.winner = username;
         gameSession.winningWord = word;
-
-        // Auto-end the session and save all player points to player_stats
-        await endGameSession(msg.channel);
+        // Don't announce - wait for !cemantix stop
     }
 }
 
