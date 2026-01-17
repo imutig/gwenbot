@@ -18,7 +18,7 @@ const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam']
 const dayNamesFull = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 
-const firstStreamDate = new Date('2026-01-06')
+const firstStreamDate = new Date('2026-01-07')
 firstStreamDate.setHours(0, 0, 0, 0)
 
 function isStreamDay(date: Date) {
