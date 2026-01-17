@@ -172,10 +172,14 @@ export default function SudokuPage() {
 
     // GwenMode - Clean blue theme
     const [gwenMode, setGwenMode] = useState(false)
+    // GwenMode difficulty change confirmation modal
+    const [gwenDifficultyModal, setGwenDifficultyModal] = useState<{ show: boolean; targetDifficulty: Difficulty | null }>({ show: false, targetDifficulty: null })
 
     // Track completed rows/cols/boxes for animation
     const [completedSections, setCompletedSections] = useState<Set<string>>(new Set())
     const [animatingSections, setAnimatingSections] = useState<Set<string>>(new Set())
+    // Wave animation - stores cell index -> animation delay for "hola" effect
+    const [waveAnimatingCells, setWaveAnimatingCells] = useState<Map<number, number>>(new Map())
 
     // GwenMode color palette (blue/white theme from screenshot)
     const gwenColors = {
@@ -191,7 +195,9 @@ export default function SudokuPage() {
         borderMain: '#2c4a6e',
         borderLight: '#c5d4e8',
         accent: '#4a6fa5',
-        completedBg: '#a8d5ba'
+        buttonBg: '#4a6fa5',
+        buttonText: '#ffffff',
+        panelBg: '#f8fafc'
     }
 
     // Flag to prevent grid reset when game is already initialized
@@ -199,6 +205,9 @@ export default function SudokuPage() {
 
     // Flag to temporarily skip status checks after unregistering
     const skipStatusCheckUntilRef = useRef<number>(0)
+
+    // Flag to track if we're in a local solo game (not stored in DB)
+    const isSoloPlayingRef = useRef(false)
 
     // Load user from session on mount
     useEffect(() => {
@@ -430,8 +439,9 @@ export default function SudokuPage() {
                     }
                 }
             } else {
-                // No active game for user - show idle with lobbies
-                if (gameState.status !== 'finished') {
+                // No active game for user in DB - show idle with lobbies
+                // BUT preserve local solo games (use ref to avoid stale state in callback)
+                if (gameState.status !== 'finished' && !isSoloPlayingRef.current) {
                     setGameState({ status: 'idle' })
                     setOpponentProgress('')
                     setOpponentUsername('')
@@ -575,6 +585,8 @@ export default function SudokuPage() {
                     puzzle: data.game.puzzle,
                     solution: data.game.solution
                 })
+                // Mark as solo game to prevent checkGameStatus from resetting it
+                isSoloPlayingRef.current = true
                 // Start timer and reset history
                 setTimer(0)
                 setErrorCount(0)
@@ -1130,6 +1142,28 @@ export default function SudokuPage() {
         const solution = gameState.solution.split('').map(Number)
         const newCompleted = new Set<string>()
         const newAnimating = new Set<string>()
+        const waveCells = new Map<number, number>() // cell index -> delay in ms
+
+        // Helper to get cells in a section with their wave order
+        const getCellsForSection = (sectionKey: string): number[] => {
+            if (sectionKey.startsWith('row-')) {
+                const row = parseInt(sectionKey.split('-')[1])
+                return Array.from({ length: 9 }, (_, col) => row * 9 + col)
+            } else if (sectionKey.startsWith('col-')) {
+                const col = parseInt(sectionKey.split('-')[1])
+                return Array.from({ length: 9 }, (_, row) => row * 9 + col)
+            } else if (sectionKey.startsWith('box-')) {
+                const [boxRow, boxCol] = sectionKey.split('-').slice(1).map(Number)
+                const cells: number[] = []
+                for (let r = 0; r < 3; r++) {
+                    for (let c = 0; c < 3; c++) {
+                        cells.push((boxRow * 3 + r) * 9 + (boxCol * 3 + c))
+                    }
+                }
+                return cells
+            }
+            return []
+        }
 
         // Check rows
         for (let row = 0; row < 9; row++) {
@@ -1146,6 +1180,9 @@ export default function SudokuPage() {
                 newCompleted.add(key)
                 if (!completedSections.has(key)) {
                     newAnimating.add(key)
+                    getCellsForSection(key).forEach((cellIdx, i) => {
+                        waveCells.set(cellIdx, i * 50)
+                    })
                 }
             }
         }
@@ -1165,6 +1202,11 @@ export default function SudokuPage() {
                 newCompleted.add(key)
                 if (!completedSections.has(key)) {
                     newAnimating.add(key)
+                    getCellsForSection(key).forEach((cellIdx, i) => {
+                        if (!waveCells.has(cellIdx)) {
+                            waveCells.set(cellIdx, i * 50)
+                        }
+                    })
                 }
             }
         }
@@ -1188,6 +1230,11 @@ export default function SudokuPage() {
                     newCompleted.add(key)
                     if (!completedSections.has(key)) {
                         newAnimating.add(key)
+                        getCellsForSection(key).forEach((cellIdx, i) => {
+                            if (!waveCells.has(cellIdx)) {
+                                waveCells.set(cellIdx, i * 50)
+                            }
+                        })
                     }
                 }
             }
@@ -1195,10 +1242,14 @@ export default function SudokuPage() {
 
         setCompletedSections(newCompleted)
 
-        // Clear animation after 600ms
-        if (newAnimating.size > 0) {
+        // Trigger wave animation
+        if (waveCells.size > 0) {
             setAnimatingSections(newAnimating)
-            setTimeout(() => setAnimatingSections(new Set()), 600)
+            setWaveAnimatingCells(waveCells)
+            setTimeout(() => {
+                setAnimatingSections(new Set())
+                setWaveAnimatingCells(new Map())
+            }, 9 * 50 + 350)
         }
     }, [grid, gameState.solution, gwenMode, completedSections])
 
@@ -1299,27 +1350,24 @@ export default function SudokuPage() {
                     const isWrongValue = !isOriginal && value !== 0 && gameState.solution && parseInt(gameState.solution[i]) !== value
                     const isError = hasConflictError || isWrongValue
 
-                    // GwenMode: check if cell is in completed section
+                    // GwenMode: check if cell is in completed section and get wave delay
                     const { isCompleted: inCompletedSection, isAnimating: isAnimatingSection } = gwenMode ? getCellSectionState(i) : { isCompleted: false, isAnimating: false }
+                    const waveDelay = waveAnimatingCells.get(i)
+                    const isWaveAnimating = waveDelay !== undefined
 
                     // Background color logic - GwenMode vs Normal
                     let bgColor: string
                     let textColor: string
-                    let borderMainColor: string
 
                     if (gwenMode) {
                         // GwenMode colors (blue/white theme)
-                        borderMainColor = gwenColors.borderMain
-
-                        // Background
-                        if (isAnimatingSection) bgColor = gwenColors.completedBg
-                        else if (isSelected && isError) bgColor = 'rgba(239, 68, 68, 0.4)'
+                        // Background - no green flash, just normal colors
+                        if (isSelected && isError) bgColor = 'rgba(239, 68, 68, 0.4)'
                         else if (isSelected) bgColor = gwenColors.bgSelected
                         else if (isConflictingWithSelected) bgColor = 'rgba(239, 68, 68, 0.25)'
                         else if (isError) bgColor = 'rgba(239, 68, 68, 0.2)'
                         else if (isSameNumber) bgColor = gwenColors.bgSameNumber
                         else if (isHighlighted) bgColor = gwenColors.bgHighlight
-                        else if (inCompletedSection) bgColor = '#e8f5e9'
                         else if (isOriginal) bgColor = gwenColors.bgCellOriginal
                         else bgColor = gwenColors.bgCell
 
@@ -1332,8 +1380,6 @@ export default function SudokuPage() {
                         else textColor = gwenColors.textNumber
                     } else {
                         // Normal mode colors (pink theme)
-                        borderMainColor = 'var(--text-primary)'
-
                         if (isSelected && isError) bgColor = 'rgba(239, 68, 68, 0.4)'
                         else if (isSelected) bgColor = 'var(--pink-accent)'
                         else if (isConflictingWithSelected) bgColor = 'rgba(239, 68, 68, 0.25)'
@@ -1368,8 +1414,12 @@ export default function SudokuPage() {
                                 cursor: 'pointer',
                                 borderRight: isThickRight ? `3px solid ${gwenMode ? gwenColors.borderMain : 'var(--text-primary)'}` : undefined,
                                 borderBottom: isThickBottom ? `3px solid ${gwenMode ? gwenColors.borderMain : 'var(--text-primary)'}` : undefined,
-                                transition: 'background 0.15s ease, transform 0.2s ease',
-                                transform: isAnimatingSection ? 'scale(1.05)' : 'scale(1)'
+                                transition: 'background 0.15s ease',
+                                animation: isWaveAnimating ? 'cellPop 0.3s ease-out forwards' : 'none',
+                                animationDelay: isWaveAnimating ? `${waveDelay}ms` : '0ms',
+                                // Cells with thick borders need higher z-index to appear above gap
+                                position: (isThickRight || isThickBottom) ? 'relative' : undefined,
+                                zIndex: (isThickRight || isThickBottom) ? 1 : undefined
                             }}
                         >
                             {value || ''}
@@ -1668,6 +1718,11 @@ export default function SudokuPage() {
                         0%, 100% { transform: scale(1); }
                         50% { transform: scale(1.1); }
                     }
+                    @keyframes cellPop {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.15); }
+                        100% { transform: scale(1); }
+                    }
                 `}</style>
             </div>
         )
@@ -1734,6 +1789,519 @@ export default function SudokuPage() {
                     ✕
                 </button>
             </div>
+        )
+    }
+
+    // Render GwenMode layout - side-by-side with control panel (matching reference image)
+    const renderGwenModeLayout = () => {
+        const digitCounts: Record<number, number> = {}
+        for (let i = 1; i <= 9; i++) digitCounts[i] = 0
+        for (const value of grid) {
+            if (value >= 1 && value <= 9) {
+                digitCounts[value]++
+            }
+        }
+
+        const gwenDifficulties: Array<{ key: Difficulty; label: string }> = [
+            { key: 'easy', label: 'Facile' },
+            { key: 'medium', label: 'Moyen' },
+            { key: 'hard', label: 'Difficile' },
+            { key: 'expert', label: 'Expert' }
+        ]
+
+        // Handle difficulty button click - show modal if different from current
+        const handleDifficultyClick = (targetDiff: Difficulty) => {
+            if (targetDiff !== difficulty) {
+                setGwenDifficultyModal({ show: true, targetDifficulty: targetDiff })
+            }
+        }
+
+        // GwenMode Undo icon
+        const UndoIcon = () => (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px' }}>
+                <path d="M3 7v6h6" />
+                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" />
+            </svg>
+        )
+
+        // GwenMode Erase icon
+        const EraseIcon = () => (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px' }}>
+                <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+                <path d="M22 21H7" />
+                <path d="m5 11 9 9" />
+            </svg>
+        )
+
+        return (
+            <div className="animate-slideIn" style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '1rem',
+                padding: '1rem',
+                background: gwenColors.bgBase,
+                minHeight: '100vh'
+            }}>
+                {/* CSS Keyframes */}
+                <style>{`
+                    @keyframes cellPop {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.15); }
+                        100% { transform: scale(1); }
+                    }
+                `}</style>
+
+                {/* Difficulty Selector */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1.5rem',
+                    marginBottom: '0.5rem'
+                }}>
+                    <span style={{
+                        color: gwenColors.textPrimary,
+                        fontSize: '0.9rem',
+                        fontWeight: 500
+                    }}>
+                        Difficulté :
+                    </span>
+                    {gwenDifficulties.map(d => (
+                        <button
+                            key={d.key}
+                            onClick={() => handleDifficultyClick(d.key)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: difficulty === d.key ? gwenColors.accent : gwenColors.textPrimary,
+                                fontWeight: difficulty === d.key ? 700 : 400,
+                                fontSize: '0.9rem',
+                                cursor: 'pointer',
+                                padding: '0.25rem 0',
+                                borderBottom: difficulty === d.key ? `2px solid ${gwenColors.accent}` : '2px solid transparent',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {d.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Difficulty change confirmation modal */}
+                {gwenDifficultyModal.show && (
+                    <div style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0, 0, 0, 0.5)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 100
+                    }}>
+                        <div style={{
+                            background: 'white',
+                            borderRadius: '12px',
+                            padding: '1.5rem',
+                            maxWidth: '400px',
+                            textAlign: 'center',
+                            boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+                        }}>
+                            <h3 style={{ margin: '0 0 1rem', color: gwenColors.textPrimary }}>
+                                Changer de difficulté ?
+                            </h3>
+                            <p style={{ margin: '0 0 1.5rem', color: gwenColors.textPrimary, opacity: 0.8 }}>
+                                Ta progression actuelle sera perdue si tu commences une nouvelle partie.
+                            </p>
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                                <button
+                                    onClick={() => setGwenDifficultyModal({ show: false, targetDifficulty: null })}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: '8px',
+                                        border: `1px solid ${gwenColors.borderLight}`,
+                                        background: 'white',
+                                        color: gwenColors.textPrimary,
+                                        cursor: 'pointer',
+                                        fontWeight: 500
+                                    }}
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (gwenDifficultyModal.targetDifficulty) {
+                                            isSoloPlayingRef.current = false
+                                            setDifficulty(gwenDifficultyModal.targetDifficulty)
+                                            setGwenDifficultyModal({ show: false, targetDifficulty: null })
+                                            setGameState({ status: 'idle' })
+                                            setTimer(0)
+                                            setIsTimerRunning(false)
+                                            setHistory([])
+                                            setHistoryIndex(-1)
+                                            setGrid(Array(81).fill(0))
+                                            setOriginalPuzzle([])
+                                            setErrorCount(0)
+                                            gameInitializedRef.current = false
+                                            // Start new game with new difficulty after state updates
+                                            setTimeout(() => handleStartSolo(), 100)
+                                        }
+                                    }}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        background: gwenColors.buttonBg,
+                                        color: 'white',
+                                        cursor: 'pointer',
+                                        fontWeight: 500
+                                    }}
+                                >
+                                    Confirmer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Main Content - Side by Side */}
+                <div style={{
+                    display: 'flex',
+                    gap: '2rem',
+                    alignItems: 'flex-start',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center'
+                }}>
+                    {/* Left: Sudoku Grid */}
+                    <div style={{ position: 'relative' }}>
+                        {/* Pause overlay */}
+                        {isPaused && !gameState.challenger && !gameState.isBattleRoyale && (
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                background: 'rgba(44, 74, 110, 0.95)',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 10,
+                                gap: '1rem'
+                            }}>
+                                <div style={{ fontSize: '2rem', color: 'white' }}>⏸️</div>
+                                <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'white' }}>Jeu en pause</div>
+                                <button
+                                    onClick={() => setIsPaused(false)}
+                                    style={{
+                                        marginTop: '0.5rem',
+                                        padding: '0.5rem 1.5rem',
+                                        borderRadius: '20px',
+                                        border: 'none',
+                                        background: gwenColors.accent,
+                                        color: 'white',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    ▶️ Reprendre
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Grid */}
+                        <div
+                            ref={gridRef}
+                            tabIndex={0}
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(9, 1fr)',
+                                gap: '1px',
+                                background: gwenColors.borderLight,
+                                borderRadius: '8px',
+                                overflow: 'hidden',
+                                width: '450px',
+                                boxShadow: '0 2px 10px rgba(44, 74, 110, 0.1)',
+                                outline: 'none',
+                                filter: isPaused && !gameState.challenger && !gameState.isBattleRoyale ? 'blur(8px)' : 'none'
+                            }}>
+                            {grid.map((value, i) => {
+                                const isOriginal = originalPuzzle[i] !== 0
+                                const isSelected = selectedCell === i
+                                const row = Math.floor(i / 9)
+                                const col = i % 9
+                                const isThickRight = col === 2 || col === 5
+                                const isThickBottom = row === 2 || row === 5
+                                const { isHighlighted, isSameNumber, isConflictingWithSelected } = getCellHighlight(i, value)
+
+                                const hasConflictError = !isOriginal && hasConflict(i, value)
+                                const isWrongValue = !isOriginal && value !== 0 && gameState.solution && parseInt(gameState.solution[i]) !== value
+                                const isError = hasConflictError || isWrongValue
+
+                                const waveDelay = waveAnimatingCells.get(i)
+                                const isWaveAnimating = waveDelay !== undefined
+
+                                let bgColor: string
+                                let textColor: string
+
+                                if (isSelected && isError) {
+                                    bgColor = 'rgba(239, 68, 68, 0.4)'
+                                    textColor = '#dc2626'
+                                } else if (isSelected) {
+                                    bgColor = gwenColors.bgSelected
+                                    textColor = 'white'
+                                } else if (isConflictingWithSelected) {
+                                    bgColor = 'rgba(239, 68, 68, 0.15)'
+                                    textColor = '#dc2626'
+                                } else if (isError) {
+                                    bgColor = 'rgba(239, 68, 68, 0.1)'
+                                    textColor = '#dc2626'
+                                } else if (isSameNumber) {
+                                    bgColor = gwenColors.bgSameNumber
+                                    textColor = gwenColors.accent
+                                } else if (isHighlighted) {
+                                    bgColor = gwenColors.bgHighlight
+                                    textColor = isOriginal ? gwenColors.textOriginal : gwenColors.textNumber
+                                } else if (isOriginal) {
+                                    bgColor = gwenColors.bgCellOriginal
+                                    textColor = gwenColors.textOriginal
+                                } else {
+                                    bgColor = gwenColors.bgCell
+                                    textColor = gwenColors.textNumber
+                                }
+
+                                return (
+                                    <div
+                                        key={i}
+                                        onClick={() => handleCellClick(i)}
+                                        style={{
+                                            width: '50px',
+                                            height: '50px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            background: bgColor,
+                                            color: textColor,
+                                            fontWeight: isOriginal ? 600 : 400,
+                                            fontSize: '1.5rem',
+                                            cursor: 'pointer',
+                                            borderRight: isThickRight ? `2px solid ${gwenColors.borderMain}` : undefined,
+                                            borderBottom: isThickBottom ? `2px solid ${gwenColors.borderMain}` : undefined,
+                                            transition: 'background 0.15s ease',
+                                            animation: isWaveAnimating ? 'cellPop 0.3s ease-out forwards' : 'none',
+                                            animationDelay: isWaveAnimating ? `${waveDelay}ms` : '0ms',
+                                            // Cells with thick borders need higher z-index to appear above gap
+                                            position: (isThickRight || isThickBottom) ? 'relative' : undefined,
+                                            zIndex: (isThickRight || isThickBottom) ? 1 : undefined
+                                        }}
+                                    >
+                                        {value || ''}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Right: Control Panel */}
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1rem',
+                        width: '280px',
+                        background: gwenColors.panelBg,
+                        borderRadius: '12px',
+                        padding: '1.5rem'
+                    }}>
+                        {/* Score Display */}
+                        <div style={{
+                            textAlign: 'center',
+                            fontSize: '2.5rem',
+                            fontWeight: 700,
+                            color: gwenColors.textPrimary
+                        }}>
+                            {calculateProgress()}
+                        </div>
+
+                        {/* Info Row: Mistakes & Time */}
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '0.5rem 0',
+                            borderBottom: `1px solid ${gwenColors.borderLight}`
+                        }}>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '0.75rem', color: gwenColors.textPrimary, opacity: 0.7 }}>Erreurs</div>
+                                <div style={{
+                                    fontSize: '1rem',
+                                    fontWeight: 600,
+                                    color: errorCount >= 2 ? '#dc2626' : gwenColors.textPrimary
+                                }}>
+                                    {errorCount}/3
+                                </div>
+                            </div>
+                            <div style={{ textAlign: 'center', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.75rem', color: gwenColors.textPrimary, opacity: 0.7 }}>Temps</div>
+                                    <div style={{ fontSize: '1rem', fontWeight: 600, color: gwenColors.textPrimary }}>
+                                        {formatTime(timer)}
+                                    </div>
+                                </div>
+                                {!gameState.challenger && !gameState.isBattleRoyale && gameState.status === 'playing' && (
+                                    <button
+                                        onClick={() => setIsPaused(!isPaused)}
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '50%',
+                                            border: `1px solid ${gwenColors.borderLight}`,
+                                            background: isPaused ? gwenColors.accent : 'white',
+                                            color: isPaused ? 'white' : gwenColors.textPrimary,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: '0.8rem'
+                                        }}
+                                    >
+                                        {isPaused ? '▶' : '⏸'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Action Buttons Row */}
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'center',
+                            gap: '1rem'
+                        }}>
+                            {/* Undo */}
+                            <button
+                                onClick={handleUndo}
+                                disabled={historyIndex <= 0 || isPaused}
+                                style={{
+                                    width: '50px',
+                                    height: '50px',
+                                    borderRadius: '50%',
+                                    border: `1px solid ${gwenColors.borderLight}`,
+                                    background: 'white',
+                                    color: historyIndex <= 0 || isPaused ? gwenColors.borderLight : gwenColors.accent,
+                                    cursor: historyIndex <= 0 || isPaused ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                                title="Undo"
+                            >
+                                <UndoIcon />
+                            </button>
+
+                            {/* Erase */}
+                            <button
+                                onClick={() => handleNumberInput(0)}
+                                disabled={isPaused}
+                                style={{
+                                    width: '50px',
+                                    height: '50px',
+                                    borderRadius: '50%',
+                                    border: `1px solid ${gwenColors.borderLight}`,
+                                    background: 'white',
+                                    color: isPaused ? gwenColors.borderLight : gwenColors.accent,
+                                    cursor: isPaused ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                                title="Erase"
+                            >
+                                <EraseIcon />
+                            </button>
+                        </div>
+
+                        {/* Number Pad - 3x3 Grid */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(3, 1fr)',
+                            gap: '0.5rem',
+                            marginTop: '0.5rem'
+                        }}>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => {
+                                const isComplete = digitCounts[num] >= 9
+                                return (
+                                    <button
+                                        key={num}
+                                        onClick={() => handleNumberInput(num)}
+                                        disabled={isComplete || isPaused}
+                                        style={{
+                                            height: '60px',
+                                            borderRadius: '8px',
+                                            border: `1px solid ${gwenColors.borderLight}`,
+                                            background: isComplete ? gwenColors.bgHighlight : 'white',
+                                            color: isComplete ? gwenColors.borderLight : gwenColors.accent,
+                                            fontSize: '1.5rem',
+                                            fontWeight: 500,
+                                            cursor: isComplete || isPaused ? 'not-allowed' : 'pointer',
+                                            opacity: isComplete ? 0.6 : 1,
+                                            transition: 'all 0.15s'
+                                        }}
+                                    >
+                                        {num}
+                                    </button>
+                                )
+                            })}
+                        </div>
+
+                        {/* New Game Button */}
+                        <button
+                            onClick={() => {
+                                isSoloPlayingRef.current = false
+                                setGameState({ status: 'idle' })
+                                setTimer(0)
+                                setIsTimerRunning(false)
+                                setHistory([])
+                                setHistoryIndex(-1)
+                                setGrid(Array(81).fill(0))
+                                setOriginalPuzzle([])
+                                setErrorCount(0)
+                                gameInitializedRef.current = false
+                                handleStartSolo()
+                            }}
+                            style={{
+                                width: '100%',
+                                padding: '1rem',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: gwenColors.buttonBg,
+                                color: gwenColors.buttonText,
+                                fontSize: '1rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                marginTop: '0.5rem'
+                            }}
+                        >
+                            Nouvelle partie
+                        </button>
+
+                        {/* GwenMode Toggle (to exit) */}
+                        <button
+                            onClick={() => setGwenMode(false)}
+                            style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                borderRadius: '8px',
+                                border: `1px solid ${gwenColors.borderLight}`,
+                                background: 'transparent',
+                                color: gwenColors.textPrimary,
+                                fontSize: '0.8rem',
+                                cursor: 'pointer',
+                                opacity: 0.7
+                            }}
+                        >
+                            Quitter GwenMode
+                        </button>
+                    </div>
+                </div>
+            </div >
         )
     }
 
@@ -2275,8 +2843,21 @@ export default function SudokuPage() {
     // Playing/Finished state - grid view (solo or still playing 1v1/BR)
     const isBRPlaying = gameState.isBattleRoyale && gameState.status === 'playing'
 
+    // Use GwenMode layout for solo games when gwenMode is active
+    if (gwenMode && gameState.status === 'playing' && !gameState.challenger && !gameState.isBattleRoyale) {
+        return renderGwenModeLayout()
+    }
+
     return (
         <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center', gap: '2rem', flexWrap: 'wrap' }}>
+            {/* CSS Keyframes for wave animation */}
+            <style>{`
+                @keyframes cellPop {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.15); }
+                    100% { transform: scale(1); }
+                }
+            `}</style>
             <div className="glass-card" style={{ padding: '2rem', maxWidth: '700px', width: '100%' }}>
                 <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                     {gameState.isBattleRoyale ? (
@@ -2411,7 +2992,7 @@ export default function SudokuPage() {
 
                 {gameState.status === 'finished' && (
                     <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-                        <FancyButton size="sm" onClick={() => { setGameState({ status: 'idle' }); setTimer(0); setHistory([]); setHistoryIndex(-1) }}>
+                        <FancyButton size="sm" onClick={() => { isSoloPlayingRef.current = false; setGameState({ status: 'idle' }); setTimer(0); setHistory([]); setHistoryIndex(-1) }}>
                             Nouvelle partie
                         </FancyButton>
                     </div>
@@ -2427,6 +3008,7 @@ export default function SudokuPage() {
                                     handleCancelGame()
                                 } else if (!gameState.challenger) {
                                     // Solo: Just reset local state
+                                    isSoloPlayingRef.current = false
                                     setGameState({ status: 'idle' })
                                     setTimer(0)
                                     setIsTimerRunning(false)
