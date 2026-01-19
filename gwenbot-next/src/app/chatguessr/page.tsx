@@ -580,11 +580,24 @@ export default function ChatGuessrPage() {
                                                     color: msg.fakeColor,
                                                     fontWeight: 700,
                                                     marginRight: '0.25rem',
-                                                    display: 'inline-block'
+                                                    display: 'inline-block',
+                                                    textDecoration: showResultColor && !result.correct ? 'line-through' : 'none',
+                                                    opacity: showResultColor && !result.correct ? 0.7 : 1
                                                 }}
                                             >
                                                 {isMatched ? answers[msg.fakeUsername] : msg.fakeUsername}
                                             </span>
+                                            {/* Show correct username if wrong */}
+                                            {showResultColor && !result.correct && (
+                                                <span style={{
+                                                    color: '#22c55e',
+                                                    fontWeight: 600,
+                                                    marginRight: '0.25rem',
+                                                    fontSize: '0.85rem'
+                                                }}>
+                                                    ({result.actual})
+                                                </span>
+                                            )}
                                             <span style={{ color: '#adadb8' }}>: </span>
                                             <span>{msg.content}</span>
                                         </div>
