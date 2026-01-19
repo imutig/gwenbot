@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import FancyButton from '@/components/ui/fancy-button'
 import UserProfileWidget from '@/components/user-profile-widget'
+import { CARD_ICONS } from '@/components/games/memory/MemoryIcons'
 
 const styles = `
   .stats-tabs {
@@ -280,6 +281,33 @@ const styles = `
       .stats-grid { grid-template-columns: 1fr; }
       .leaderboard-grid { grid-template-columns: 1fr; }
   }
+  .memory-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+  }
+  .memory-modal {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 1.5rem;
+      max-width: 500px;
+      width: 90%;
+  }
+  .memory-grid-4x4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+  .memory-grid-6x6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.35rem; }
+  .memory-card-preview {
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--pink-main), var(--pink-accent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+  }
 `
 
 type Tab = 'chat' | 'games' | 'watchtime'
@@ -329,6 +357,7 @@ export default function StatsPage() {
     const [memoryType, setMemoryType] = useState<'moves' | 'time' | '1v1'>('moves')
     const [memoryDifficulty, setMemoryDifficulty] = useState<'4x4' | '6x6'>('4x4')
     const [gwendleLength, setGwendleLength] = useState<5 | 7>(5)
+    const [selectedMemoryGame, setSelectedMemoryGame] = useState<{ username: string; moves: number; time: number; cards: string[]; difficulty: string } | null>(null)
 
     // Load stats based on period
     const loadStats = useCallback(async () => {
@@ -773,14 +802,19 @@ export default function StatsPage() {
                                 }
 
                                 return data.slice(0, 5).map((e, i) => (
-                                    <LeaderboardItem
+                                    <div
                                         key={`mem-${i}`}
-                                        itemKey={`mem-${i}`}
-                                        rank={i + 1}
-                                        username={e.username}
-                                        value={isTime ? `${Math.floor(e.time / 60)}:${String(e.time % 60).padStart(2, '0')}` : (memoryType === '1v1' ? e.wins : e.moves)}
-                                        valueLabel={isTime ? '' : valueLabel}
-                                    />
+                                        onClick={() => memoryType !== '1v1' && e.cards && setSelectedMemoryGame(e)}
+                                        style={{ cursor: memoryType !== '1v1' && e.cards ? 'pointer' : 'default' }}
+                                    >
+                                        <LeaderboardItem
+                                            itemKey={`mem-${i}`}
+                                            rank={i + 1}
+                                            username={e.username}
+                                            value={isTime ? `${Math.floor(e.time / 60)}:${String(e.time % 60).padStart(2, '0')}` : (memoryType === '1v1' ? e.wins : e.moves)}
+                                            valueLabel={isTime ? '' : valueLabel}
+                                        />
+                                    </div>
                                 ))
                             })()}
                         </div>
@@ -983,6 +1017,56 @@ export default function StatsPage() {
                     </div>
                 )}
             </div>
+
+            {/* Memory Game Modal */}
+            {selectedMemoryGame && (
+                <div className="memory-modal-overlay" onClick={() => setSelectedMemoryGame(null)}>
+                    <div className="memory-modal" onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="var(--pink-accent)" strokeWidth="2" style={{ width: '20px', height: '20px' }}>
+                                    <rect width="6" height="6" x="3" y="3" rx="1" />
+                                    <rect width="6" height="6" x="15" y="3" rx="1" />
+                                    <rect width="6" height="6" x="3" y="15" rx="1" />
+                                    <rect width="6" height="6" x="15" y="15" rx="1" />
+                                </svg>
+                                Partie de {selectedMemoryGame.username}
+                            </h3>
+                            <button
+                                onClick={() => setSelectedMemoryGame(null)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem', color: 'var(--text-muted)' }}
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '20px', height: '20px' }}>
+                                    <path d="M18 6L6 18M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            <span>{selectedMemoryGame.moves} coups</span>
+                            <span>{Math.floor(selectedMemoryGame.time / 60)}:{String(selectedMemoryGame.time % 60).padStart(2, '0')}</span>
+                            <span>{selectedMemoryGame.difficulty === 'easy' ? '4x4' : '6x6'}</span>
+                        </div>
+                        <div className={selectedMemoryGame.difficulty === 'easy' ? 'memory-grid-4x4' : 'memory-grid-6x6'}>
+                            {selectedMemoryGame.cards.map((icon, i) => {
+                                const cardData = CARD_ICONS[icon]
+                                return (
+                                    <div
+                                        key={i}
+                                        className="memory-card-preview"
+                                        style={{
+                                            background: cardData ? `linear-gradient(135deg, ${cardData.color}dd, ${cardData.color}99)` : 'linear-gradient(135deg, var(--pink-main), var(--pink-accent))'
+                                        }}
+                                    >
+                                        <div style={{ width: '50%', height: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {cardData ? cardData.svg : <span style={{ fontSize: '0.7rem' }}>{icon}</span>}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     )
 }

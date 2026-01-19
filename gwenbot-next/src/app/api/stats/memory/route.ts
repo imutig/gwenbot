@@ -46,9 +46,12 @@ export async function GET(request: Request) {
             const endTime = new Date(game.end_time).getTime()
             const timeSeconds = Math.floor((endTime - startTime) / 1000)
             return {
+                game_id: game.id,
                 username: game.host?.username || 'Unknown',
                 moves: game.moves,
-                time: timeSeconds
+                time: timeSeconds,
+                cards: game.cards,
+                difficulty: game.difficulty
             }
         })
 
