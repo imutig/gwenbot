@@ -494,7 +494,7 @@ async function handleMessage(msg) {
 
             const emotes = ['xsgwenLol', 'xsgwenWow', 'xsgwenSip'];
             const randomEmote = emotes[Math.floor(Math.random() * emotes.length)];
-            twitchClient.say(msg.channel, `Oups, à tes souhaits Gwen 🥴 Rôt n°${global.rotCount} entré par ${msg.username} ${randomEmote || ''}. Ecris !annuler si tu t'es trompé.`);
+            twitchClient.say(msg.channel, `Oups, à tes souhaits Gwen 🥴 Rôt n°${global.rotCount} entré par ${msg.username} ${randomEmote || ''} (Écris !annuler si tu t'es trompé).`);
             return;
         }
 
