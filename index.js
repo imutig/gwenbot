@@ -463,6 +463,81 @@ async function handleMessage(msg) {
             return;
         }
 
+        // === Commande humoristique: !rot ===
+        if (command === 'rot') {
+            // Check cooldown (5 minutes = 300000ms)
+            const now = Date.now();
+            const lastRotTime = global.lastRotTime || 0;
+            const cooldownMs = 5 * 60 * 1000; // 5 minutes
+
+            if (now - lastRotTime < cooldownMs) {
+                const remainingSeconds = Math.ceil((cooldownMs - (now - lastRotTime)) / 1000);
+                const mins = Math.floor(remainingSeconds / 60);
+                const secs = remainingSeconds % 60;
+                twitchClient.say(msg.channel, `@${msg.username} Attends encore ${mins}m${secs}s avant le prochain rôt. (anti-spam)`);
+                return;
+            }
+
+            // Increment counter
+            global.rotCount = (global.rotCount || 0) + 1;
+            global.lastRotTime = now;
+            global.lastRotUser = msg.username;
+
+            // Save to database
+            try {
+                await supabase
+                    .from('counters')
+                    .upsert({ name: 'rot', value: global.rotCount }, { onConflict: 'name' });
+            } catch (e) {
+                console.error('Failed to save rot counter:', e);
+            }
+
+            const emotes = ['xsgwenLol', 'xsgwenWow', 'xsgwenSip'];
+            const randomEmote = emotes[Math.floor(Math.random() * emotes.length)];
+            twitchClient.say(msg.channel, `Oups, à tes souhaits Gwen 🥴 Rôt n°${global.rotCount} entré par ${msg.username} ${randomEmote || ''}. Ecris !annuler si tu t'es trompé.`);
+            return;
+        }
+
+        // === Commande humoristique: !annuler (annule le dernier rôt) ===
+        if (command === 'annuler') {
+            // Check if there was a recent rot by this user
+            if (!global.lastRotTime || !global.lastRotUser) {
+                twitchClient.say(msg.channel, `@${msg.username} Rien à annuler !`);
+                return;
+            }
+
+            const now = Date.now();
+            const timeSinceRot = now - global.lastRotTime;
+            const maxAnnulTime = 30 * 1000; // 30 seconds to annul
+
+            if (timeSinceRot > maxAnnulTime) {
+                twitchClient.say(msg.channel, `@${msg.username} Trop tard pour annuler ! (max 30s après un rôt)`);
+                return;
+            }
+
+            if (global.lastRotUser !== msg.username) {
+                twitchClient.say(msg.channel, `@${msg.username} Tu ne peux annuler que ton propre rôt !`);
+                return;
+            }
+
+            // Decrement counter
+            global.rotCount = Math.max(0, (global.rotCount || 0) - 1);
+            global.lastRotTime = null;
+            global.lastRotUser = null;
+
+            // Save to database
+            try {
+                await supabase
+                    .from('counters')
+                    .upsert({ name: 'rot', value: global.rotCount }, { onConflict: 'name' });
+            } catch (e) {
+                console.error('Failed to save rot counter:', e);
+            }
+
+            twitchClient.say(msg.channel, `@${msg.username} Rôt annulé ! Compteur: ${global.rotCount}`);
+            return;
+        }
+
         // === Commande publique: !guess <mot> (Cemantig) ===
         if (command === 'guess' || command === 'g') {
             const word = args[0]?.toLowerCase().trim();
@@ -1179,6 +1254,20 @@ async function start() {
 
         // Load channel emotes from API
         await loadChannelEmotes();
+
+        // Load rot counter from database
+        try {
+            const { data } = await supabase
+                .from('counters')
+                .select('value')
+                .eq('name', 'rot')
+                .single();
+            global.rotCount = data?.value || 0;
+            console.log(`🫧 Compteur de rôts chargé: ${global.rotCount}`);
+        } catch (e) {
+            global.rotCount = 0;
+            console.log('🫧 Compteur de rôts initialisé à 0');
+        }
     } catch (error) {
         console.error('❌ Erreur de connexion à Twitch:', error);
         console.log('⚠️ Le bot continuera sans connexion au chat. Veuillez autoriser le bot via /auth/bot-authorize');
