@@ -242,7 +242,7 @@ export default function GwenshinPage() {
 
     // Load saved game state on mount
     useEffect(() => {
-        const savedData = localStorage.getItem('gwenshin-game')
+        const savedData = localStorage.getItem('gwenshin-game-v2')
         if (savedData) {
             try {
                 const parsed = JSON.parse(savedData)
@@ -260,10 +260,10 @@ export default function GwenshinPage() {
                     setRevealedCells(allCells)
                 } else {
                     // Clear old data
-                    localStorage.removeItem('gwenshin-game')
+                    localStorage.removeItem('gwenshin-game-v2')
                 }
             } catch (e) {
-                localStorage.removeItem('gwenshin-game')
+                localStorage.removeItem('gwenshin-game-v2')
             }
         }
         setIsLoaded(true)
@@ -272,7 +272,7 @@ export default function GwenshinPage() {
     // Save game state when guesses or gameWon changes
     useEffect(() => {
         if (isLoaded) {
-            localStorage.setItem('gwenshin-game', JSON.stringify({
+            localStorage.setItem('gwenshin-game-v2', JSON.stringify({
                 date: getTodayKey(),
                 guesses,
                 gameWon

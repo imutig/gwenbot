@@ -278,7 +278,7 @@ export default function GwendlePage() {
         setDayNumber(daily.dayNumber)
 
         // Restore state from local storage specific to length
-        const savedState = localStorage.getItem(`gwendle-state-${wordLength}`)
+        const savedState = localStorage.getItem(`gwendle-state-v2-${wordLength}`)
         if (savedState) {
             try {
                 const parsed: GameData = JSON.parse(savedState)
@@ -322,7 +322,7 @@ export default function GwendlePage() {
                 gameState,
                 wordLength
             }
-            localStorage.setItem(`gwendle-state-${wordLength}`, JSON.stringify(data))
+            localStorage.setItem(`gwendle-state-v2-${wordLength}`, JSON.stringify(data))
         }
     }, [guesses, gameState, dayNumber, wordLength])
 
