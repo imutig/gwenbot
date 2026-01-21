@@ -209,6 +209,85 @@ export default function SudokuPage() {
     // Flag to track if we're in a local solo game (not stored in DB)
     const isSoloPlayingRef = useRef(false)
 
+    // Key bindings configuration
+    type KeyBinding = {
+        key: string
+        ctrl?: boolean
+        shift?: boolean
+        alt?: boolean
+    }
+
+    interface KeyBindings {
+        undo: KeyBinding
+        redo: KeyBinding
+        erase: KeyBinding[]
+        pause: KeyBinding
+        navUp: KeyBinding
+        navDown: KeyBinding
+        navLeft: KeyBinding
+        navRight: KeyBinding
+    }
+
+    const defaultKeyBindings: KeyBindings = {
+        undo: { key: 'z', ctrl: true },
+        redo: { key: 'y', ctrl: true },
+        erase: [{ key: 'Delete' }, { key: 'Backspace' }, { key: '0' }],
+        pause: { key: 'p' },
+        navUp: { key: 'ArrowUp' },
+        navDown: { key: 'ArrowDown' },
+        navLeft: { key: 'ArrowLeft' },
+        navRight: { key: 'ArrowRight' }
+    }
+
+    const [keyBindings, setKeyBindings] = useState<KeyBindings>(defaultKeyBindings)
+    const [showKeySettings, setShowKeySettings] = useState(false)
+    const [editingAction, setEditingAction] = useState<keyof KeyBindings | null>(null)
+
+    // Load key bindings from localStorage on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('sudoku-key-bindings')
+            if (saved) {
+                const parsed = JSON.parse(saved)
+                setKeyBindings({ ...defaultKeyBindings, ...parsed })
+            }
+        } catch (err) {
+            console.error('Error loading key bindings:', err)
+        }
+    }, [])
+
+    // Save key bindings to localStorage
+    const saveKeyBindings = (newBindings: KeyBindings) => {
+        setKeyBindings(newBindings)
+        localStorage.setItem('sudoku-key-bindings', JSON.stringify(newBindings))
+    }
+
+    // Helper to check if a key event matches a binding
+    const matchesBinding = (e: KeyboardEvent, binding: KeyBinding): boolean => {
+        const keyMatch = e.key.toLowerCase() === binding.key.toLowerCase() || e.key === binding.key
+        const ctrlMatch = binding.ctrl ? (e.ctrlKey || e.metaKey) : !(e.ctrlKey || e.metaKey)
+        const shiftMatch = binding.shift ? e.shiftKey : !e.shiftKey
+        const altMatch = binding.alt ? e.altKey : !e.altKey
+        return keyMatch && ctrlMatch && shiftMatch && altMatch
+    }
+
+    // Helper to format binding for display
+    const formatBinding = (binding: KeyBinding): string => {
+        const parts: string[] = []
+        if (binding.ctrl) parts.push('Ctrl')
+        if (binding.shift) parts.push('Shift')
+        if (binding.alt) parts.push('Alt')
+        // Format special keys
+        const keyDisplay = binding.key === 'ArrowUp' ? '↑' :
+            binding.key === 'ArrowDown' ? '↓' :
+                binding.key === 'ArrowLeft' ? '←' :
+                    binding.key === 'ArrowRight' ? '→' :
+                        binding.key === ' ' ? 'Space' :
+                            binding.key.length === 1 ? binding.key.toUpperCase() : binding.key
+        parts.push(keyDisplay)
+        return parts.join('+')
+    }
+
     // Load user from session on mount
     useEffect(() => {
         const loadUser = async () => {
@@ -260,6 +339,41 @@ export default function SudokuPage() {
     // Keyboard input effect
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Handle key settings mode first (capture any key for rebinding)
+            if (editingAction !== null) {
+                e.preventDefault()
+                const newBinding: KeyBinding = {
+                    key: e.key,
+                    ctrl: e.ctrlKey || e.metaKey || undefined,
+                    shift: e.shiftKey || undefined,
+                    alt: e.altKey || undefined
+                }
+                // Clean up undefined/false modifiers
+                if (!newBinding.ctrl) delete newBinding.ctrl
+                if (!newBinding.shift) delete newBinding.shift
+                if (!newBinding.alt) delete newBinding.alt
+
+                const newBindings = { ...keyBindings }
+                if (editingAction === 'erase') {
+                    // For erase, replace all bindings with single new one
+                    newBindings.erase = [newBinding]
+                } else {
+                    (newBindings[editingAction] as KeyBinding) = newBinding
+                }
+                saveKeyBindings(newBindings)
+                setEditingAction(null)
+                return
+            }
+
+            // Pause toggle (works even when game is paused)
+            if (gameState.status === 'playing' && !gameState.challenger && !gameState.isBattleRoyale) {
+                if (matchesBinding(e, keyBindings.pause)) {
+                    e.preventDefault()
+                    setIsPaused(p => !p)
+                    return
+                }
+            }
+
             if (gameState.status !== 'playing' || selectedCell === null || isPaused) return
 
             const key = e.key
@@ -271,35 +385,35 @@ export default function SudokuPage() {
                 e.preventDefault()
                 handleNumberInput(parseInt(key))
             }
-            // Delete or Backspace to clear (only allowed on non-original cells, and if not eliminated/finished)
-            else if (key === 'Delete' || key === 'Backspace' || key === '0') {
+            // Erase key(s) - configurable
+            else if (keyBindings.erase.some(b => matchesBinding(e, b))) {
                 if (isOriginalCell || isEliminated || hasBRFinished) return // Can't edit
                 e.preventDefault()
                 handleNumberInput(0)
             }
-            // Arrow keys for navigation
-            else if (key === 'ArrowUp' && selectedCell >= 9) {
+            // Navigation - configurable
+            else if (matchesBinding(e, keyBindings.navUp) && selectedCell >= 9) {
                 e.preventDefault()
                 setSelectedCell(selectedCell - 9)
             }
-            else if (key === 'ArrowDown' && selectedCell < 72) {
+            else if (matchesBinding(e, keyBindings.navDown) && selectedCell < 72) {
                 e.preventDefault()
                 setSelectedCell(selectedCell + 9)
             }
-            else if (key === 'ArrowLeft' && selectedCell % 9 > 0) {
+            else if (matchesBinding(e, keyBindings.navLeft) && selectedCell % 9 > 0) {
                 e.preventDefault()
                 setSelectedCell(selectedCell - 1)
             }
-            else if (key === 'ArrowRight' && selectedCell % 9 < 8) {
+            else if (matchesBinding(e, keyBindings.navRight) && selectedCell % 9 < 8) {
                 e.preventDefault()
                 setSelectedCell(selectedCell + 1)
             }
-            // Undo/Redo with Ctrl+Z / Ctrl+Y
-            else if ((e.ctrlKey || e.metaKey) && key === 'z') {
+            // Undo/Redo - configurable
+            else if (matchesBinding(e, keyBindings.undo)) {
                 e.preventDefault()
                 handleUndo()
             }
-            else if ((e.ctrlKey || e.metaKey) && key === 'y') {
+            else if (matchesBinding(e, keyBindings.redo)) {
                 e.preventDefault()
                 handleRedo()
             }
@@ -307,7 +421,7 @@ export default function SudokuPage() {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [gameState.status, selectedCell, originalPuzzle, historyIndex, history])
+    }, [gameState.status, selectedCell, originalPuzzle, historyIndex, history, keyBindings, editingAction, isPaused])
 
     // Check for active game on load (wait for user to be loaded)
     // Check for active game on load (wait for user to be loaded)
@@ -857,6 +971,16 @@ export default function SudokuPage() {
         if (selectedCell === null) return
         if (originalPuzzle[selectedCell] !== 0) return // Can't edit original cells
         if (gameState.status === 'finished') return // Game already ended
+
+        // TOGGLE: If same number is entered, clear the cell
+        if (num !== 0 && grid[selectedCell] === num) {
+            const newGrid = [...grid]
+            newGrid[selectedCell] = 0
+            setGrid(newGrid)
+            addToHistory(newGrid)
+            console.log('[Sudoku] Same number toggled off, cell cleared')
+            return
+        }
 
         const solution = gameState.solution
 
@@ -1843,6 +1967,9 @@ export default function SudokuPage() {
                 background: gwenColors.bgBase,
                 minHeight: '100vh'
             }}>
+                {/* Key Settings Modal */}
+                {renderKeySettingsModal()}
+
                 {/* CSS Keyframes */}
                 <style>{`
                     @keyframes cellPop {
@@ -1852,7 +1979,7 @@ export default function SudokuPage() {
                     }
                 `}</style>
 
-                {/* Difficulty Selector */}
+                {/* Difficulty Selector with Settings Button */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1885,6 +2012,25 @@ export default function SudokuPage() {
                             {d.label}
                         </button>
                     ))}
+
+                    {/* Settings button */}
+                    <button
+                        onClick={() => setShowKeySettings(true)}
+                        title="Configuration des touches"
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: '1.1rem',
+                            opacity: 0.7,
+                            padding: '0.25rem',
+                            transition: 'opacity 0.2s'
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                        onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
+                    >
+                        ⚙️
+                    </button>
                 </div>
 
                 {/* Difficulty change confirmation modal */}
@@ -2843,6 +2989,136 @@ export default function SudokuPage() {
     // Playing/Finished state - grid view (solo or still playing 1v1/BR)
     const isBRPlaying = gameState.isBattleRoyale && gameState.status === 'playing'
 
+    // Key Settings Modal
+    const renderKeySettingsModal = () => {
+        if (!showKeySettings) return null
+
+        const actionLabels: Record<keyof KeyBindings, string> = {
+            undo: 'Annuler',
+            redo: 'Rétablir',
+            erase: 'Effacer',
+            pause: 'Pause',
+            navUp: 'Haut',
+            navDown: 'Bas',
+            navLeft: 'Gauche',
+            navRight: 'Droite'
+        }
+
+        return (
+            <div style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.6)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000
+            }} onClick={() => { setShowKeySettings(false); setEditingAction(null) }}>
+                <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                        padding: '1.5rem',
+                        width: '90%',
+                        maxWidth: '400px',
+                        maxHeight: '80vh',
+                        overflowY: 'auto',
+                        background: 'var(--bg-card)',
+                        borderRadius: '16px',
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+                    }}
+                >
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        ⚙️ Configuration des touches
+                    </h2>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {(Object.keys(keyBindings) as (keyof KeyBindings)[]).map(action => {
+                            const binding = keyBindings[action]
+                            const isEditing = editingAction === action
+
+                            return (
+                                <div key={action} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.5rem 0.75rem',
+                                    background: isEditing ? 'var(--pink-accent)' : 'var(--bg-base)',
+                                    borderRadius: '8px',
+                                    transition: 'background 0.2s'
+                                }}>
+                                    <span style={{ fontWeight: 500, color: isEditing ? 'white' : 'var(--text-primary)' }}>
+                                        {actionLabels[action]}
+                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span style={{
+                                            padding: '0.25rem 0.5rem',
+                                            background: isEditing ? 'rgba(255,255,255,0.2)' : 'var(--bg-card)',
+                                            borderRadius: '4px',
+                                            fontSize: '0.875rem',
+                                            fontFamily: 'monospace',
+                                            color: isEditing ? 'white' : 'var(--text-secondary)'
+                                        }}>
+                                            {isEditing ? 'Appuyer...' :
+                                                Array.isArray(binding) ? binding.map(b => formatBinding(b)).join(' / ') : formatBinding(binding)}
+                                        </span>
+                                        <button
+                                            onClick={() => setEditingAction(isEditing ? null : action)}
+                                            style={{
+                                                padding: '0.25rem 0.5rem',
+                                                background: isEditing ? 'white' : 'var(--pink-accent)',
+                                                color: isEditing ? 'var(--pink-accent)' : 'white',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                fontSize: '0.75rem',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {isEditing ? 'Annuler' : 'Modifier'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem' }}>
+                        <button
+                            onClick={() => {
+                                saveKeyBindings(defaultKeyBindings)
+                                setEditingAction(null)
+                            }}
+                            style={{
+                                flex: 1,
+                                padding: '0.5rem',
+                                background: 'var(--bg-base)',
+                                color: 'var(--text-primary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '8px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Réinitialiser
+                        </button>
+                        <button
+                            onClick={() => { setShowKeySettings(false); setEditingAction(null) }}
+                            style={{
+                                flex: 1,
+                                padding: '0.5rem',
+                                background: 'var(--pink-accent)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Fermer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     // Use GwenMode layout for solo games when gwenMode is active
     if (gwenMode && gameState.status === 'playing' && !gameState.challenger && !gameState.isBattleRoyale) {
         return renderGwenModeLayout()
@@ -2850,6 +3126,9 @@ export default function SudokuPage() {
 
     return (
         <div className="animate-slideIn" style={{ display: 'flex', justifyContent: 'center', gap: '2rem', flexWrap: 'wrap' }}>
+            {/* Key Settings Modal */}
+            {renderKeySettingsModal()}
+
             {/* CSS Keyframes for wave animation */}
             <style>{`
                 @keyframes cellPop {
@@ -2859,15 +3138,38 @@ export default function SudokuPage() {
                 }
             `}</style>
             <div className="glass-card" style={{ padding: '2rem', maxWidth: '700px', width: '100%' }}>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                    {gameState.isBattleRoyale ? (
-                        <><CrownIcon size={24} /> Battle Royale</>
-                    ) : gameState.challenger ? (
-                        `${gameState.host?.username} vs ${gameState.challenger?.username}`
-                    ) : (
-                        'Sudoku Solo'
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem', position: 'relative' }}>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 600, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', margin: 0 }}>
+                        {gameState.isBattleRoyale ? (
+                            <><CrownIcon size={24} /> Battle Royale</>
+                        ) : gameState.challenger ? (
+                            `${gameState.host?.username} vs ${gameState.challenger?.username}`
+                        ) : (
+                            'Sudoku Solo'
+                        )}
+                    </h1>
+                    {/* Settings button - only show in solo mode */}
+                    {!gameState.challenger && !gameState.isBattleRoyale && (
+                        <button
+                            onClick={() => setShowKeySettings(true)}
+                            title="Configuration des touches"
+                            style={{
+                                position: 'absolute',
+                                right: 0,
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '1.25rem',
+                                opacity: 0.7,
+                                transition: 'opacity 0.2s'
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
+                        >
+                            ⚙️
+                        </button>
                     )}
-                </h1>
+                </div>
 
                 {/* BR Eliminated overlay */}
                 {isBRPlaying && isEliminated && (
