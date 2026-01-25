@@ -412,38 +412,93 @@ class TwitchClient extends EventEmitter {
             return;
         }
 
-        // Subscribe to channel.chat.message
-        try {
-            const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
-                method: 'POST',
-                headers: {
-                    'Client-ID': this.clientId,
-                    'Authorization': `Bearer ${this.botAccessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    type: 'channel.chat.message',
-                    version: '1',
-                    condition: {
-                        broadcaster_user_id: this.broadcasterUserId,
-                        user_id: this.botUserId
-                    },
-                    transport: {
-                        method: 'websocket',
-                        session_id: this.sessionId
-                    }
-                })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                console.log('✅ Subscribed to channel.chat.message');
-            } else {
-                console.error('❌ Failed to subscribe:', data);
+        // List of events to subscribe to
+        const subscriptions = [
+            // Chat messages
+            {
+                type: 'channel.chat.message',
+                version: '1',
+                condition: {
+                    broadcaster_user_id: this.broadcasterUserId,
+                    user_id: this.botUserId
+                }
+            },
+            // Subscriptions
+            {
+                type: 'channel.subscribe',
+                version: '1',
+                condition: { broadcaster_user_id: this.broadcasterUserId }
+            },
+            // Resubscriptions
+            {
+                type: 'channel.subscription.message',
+                version: '1',
+                condition: { broadcaster_user_id: this.broadcasterUserId }
+            },
+            // Gift subs
+            {
+                type: 'channel.subscription.gift',
+                version: '1',
+                condition: { broadcaster_user_id: this.broadcasterUserId }
+            },
+            // Bits/Cheers
+            {
+                type: 'channel.cheer',
+                version: '1',
+                condition: { broadcaster_user_id: this.broadcasterUserId }
+            },
+            // Raids
+            {
+                type: 'channel.raid',
+                version: '1',
+                condition: { to_broadcaster_user_id: this.broadcasterUserId }
+            },
+            // Follows
+            {
+                type: 'channel.follow',
+                version: '2',
+                condition: {
+                    broadcaster_user_id: this.broadcasterUserId,
+                    moderator_user_id: this.broadcasterUserId
+                }
             }
-        } catch (error) {
-            console.error('❌ Subscription error:', error);
+        ];
+
+        for (const sub of subscriptions) {
+            try {
+                const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+                    method: 'POST',
+                    headers: {
+                        'Client-ID': this.clientId,
+                        'Authorization': `Bearer ${this.broadcasterAccessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        type: sub.type,
+                        version: sub.version,
+                        condition: sub.condition,
+                        transport: {
+                            method: 'websocket',
+                            session_id: this.sessionId
+                        }
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    console.log(`✅ Subscribed to ${sub.type}`);
+                } else {
+                    // Don't spam errors for missing scopes, just log once
+                    if (data.message?.includes('scope')) {
+                        console.log(`⚠️ Missing scope for ${sub.type}`);
+                    } else {
+                        console.error(`❌ Failed to subscribe to ${sub.type}:`, data.message || data);
+                    }
+                }
+            } catch (error) {
+                console.error(`❌ Subscription error for ${sub.type}:`, error);
+            }
         }
     }
 
@@ -452,26 +507,93 @@ class TwitchClient extends EventEmitter {
      */
     async handleNotification(payload) {
         const eventType = payload.subscription?.type;
+        const event = payload.event;
 
-        if (eventType === 'channel.chat.message') {
-            const event = payload.event;
+        switch (eventType) {
+            case 'channel.chat.message':
+                // Emit event in TMI.js-compatible format
+                this.emit('message', {
+                    channel: `#${event.broadcaster_user_login}`,
+                    username: event.chatter_user_login,
+                    displayName: event.chatter_user_name,
+                    userId: event.chatter_user_id,
+                    message: event.message.text,
+                    messageId: event.message_id,
+                    badges: event.badges || [],
+                    isMod: event.badges?.some(b => b.set_id === 'moderator') || false,
+                    isBroadcaster: event.chatter_user_id === event.broadcaster_user_id,
+                    isVip: event.badges?.some(b => b.set_id === 'vip') || false,
+                    fragments: event.message.fragments || [],
+                    color: event.color,
+                    self: event.chatter_user_id === this.botUserId
+                });
+                break;
 
-            // Emit event in TMI.js-compatible format
-            this.emit('message', {
-                channel: `#${event.broadcaster_user_login}`,
-                username: event.chatter_user_login,
-                displayName: event.chatter_user_name,
-                userId: event.chatter_user_id,
-                message: event.message.text,
-                messageId: event.message_id,
-                badges: event.badges || [],
-                isMod: event.badges?.some(b => b.set_id === 'moderator') || false,
-                isBroadcaster: event.chatter_user_id === event.broadcaster_user_id,
-                isVip: event.badges?.some(b => b.set_id === 'vip') || false,
-                fragments: event.message.fragments || [],
-                color: event.color,
-                self: event.chatter_user_id === this.botUserId
-            });
+            case 'channel.subscribe':
+                this.emit('alert', {
+                    type: 'sub',
+                    username: event.user_name,
+                    userId: event.user_id,
+                    tier: event.tier,
+                    isGift: event.is_gift
+                });
+                console.log(`⭐ New sub: ${event.user_name} (Tier ${event.tier})`);
+                break;
+
+            case 'channel.subscription.message':
+                this.emit('alert', {
+                    type: 'resub',
+                    username: event.user_name,
+                    userId: event.user_id,
+                    tier: event.tier,
+                    months: event.cumulative_months,
+                    streak: event.streak_months,
+                    message: event.message?.text || ''
+                });
+                console.log(`🌟 Resub: ${event.user_name} (${event.cumulative_months} months)`);
+                break;
+
+            case 'channel.subscription.gift':
+                this.emit('alert', {
+                    type: 'giftsub',
+                    username: event.user_name || 'Anonymous',
+                    userId: event.user_id,
+                    tier: event.tier,
+                    total: event.total,
+                    cumulativeTotal: event.cumulative_total
+                });
+                console.log(`🎁 Gift subs: ${event.user_name || 'Anonymous'} gifted ${event.total} subs`);
+                break;
+
+            case 'channel.cheer':
+                this.emit('alert', {
+                    type: 'bits',
+                    username: event.user_name || 'Anonymous',
+                    userId: event.user_id,
+                    bits: event.bits,
+                    message: event.message || ''
+                });
+                console.log(`💎 Bits: ${event.user_name || 'Anonymous'} cheered ${event.bits} bits`);
+                break;
+
+            case 'channel.raid':
+                this.emit('alert', {
+                    type: 'raid',
+                    username: event.from_broadcaster_user_name,
+                    userId: event.from_broadcaster_user_id,
+                    viewers: event.viewers
+                });
+                console.log(`🚀 Raid: ${event.from_broadcaster_user_name} with ${event.viewers} viewers`);
+                break;
+
+            case 'channel.follow':
+                this.emit('alert', {
+                    type: 'follow',
+                    username: event.user_name,
+                    userId: event.user_id
+                });
+                console.log(`💖 Follow: ${event.user_name}`);
+                break;
         }
     }
 
@@ -816,6 +938,92 @@ class TwitchClient extends EventEmitter {
         } catch (error) {
             console.error('❌ Error ending poll:', error);
             return null;
+        }
+    }
+
+
+    // ==================== CHANNEL MANAGEMENT ====================
+
+    /**
+     * Update channel information (title and/or game)
+     * @param {string|null} title - New stream title (max 140 chars)
+     * @param {string|null} gameId - Game/category ID
+     * @returns {boolean} Success
+     */
+    async updateChannelInfo(title = null, gameId = null) {
+        if (!this.broadcasterAccessToken) {
+            console.error('❌ Cannot update channel: no broadcaster token');
+            return false;
+        }
+
+        const body = {};
+        if (title !== null) body.title = title.substring(0, 140);
+        if (gameId !== null) body.game_id = gameId;
+
+        if (Object.keys(body).length === 0) {
+            console.log('⚠️ No changes to update');
+            return false;
+        }
+
+        try {
+            const response = await fetch(
+                `https://api.twitch.tv/helix/channels?broadcaster_id=${this.broadcasterUserId}`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'Client-ID': this.clientId,
+                        'Authorization': `Bearer ${this.broadcasterAccessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                }
+            );
+
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('❌ Failed to update channel:', error);
+                return false;
+            }
+
+            if (title) console.log(`📝 Title updated: ${title}`);
+            if (gameId) console.log(`🎮 Game updated: ${gameId}`);
+            return true;
+        } catch (error) {
+            console.error('❌ Error updating channel:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Search for game categories
+     * @param {string} query - Search query
+     * @returns {Array} List of matching categories [{id, name, box_art_url}]
+     */
+    async searchCategories(query) {
+        try {
+            const token = await this.getAppAccessToken();
+
+            const response = await fetch(
+                `https://api.twitch.tv/helix/search/categories?query=${encodeURIComponent(query)}&first=10`,
+                {
+                    headers: {
+                        'Client-ID': this.clientId,
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('❌ Failed to search categories:', error);
+                return [];
+            }
+
+            const data = await response.json();
+            return data.data || [];
+        } catch (error) {
+            console.error('❌ Error searching categories:', error);
+            return [];
         }
     }
 

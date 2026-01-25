@@ -538,6 +538,61 @@ async function handleMessage(msg) {
             return;
         }
 
+        // === Commande mod: !titre <nouveau titre> ===
+        if (command === 'titre') {
+            // Only mods and broadcaster
+            if (!isModerator(msg)) {
+                twitchClient.say(msg.channel, `@${msg.username} Tu dois être mod pour utiliser cette commande.`);
+                return;
+            }
+
+            const newTitle = args.join(' ').trim();
+            if (!newTitle) {
+                twitchClient.say(msg.channel, `@${msg.username} Utilisation: !titre <nouveau titre>`);
+                return;
+            }
+
+            const success = await twitchClient.updateChannelInfo(newTitle, null);
+            if (success) {
+                twitchClient.say(msg.channel, `📝 Titre mis à jour: ${newTitle}`);
+            } else {
+                twitchClient.say(msg.channel, `@${msg.username} Erreur lors de la mise à jour du titre.`);
+            }
+            return;
+        }
+
+        // === Commande mod: !jeu <catégorie> ===
+        if (command === 'jeu' || command === 'game') {
+            // Only mods and broadcaster
+            if (!isModerator(msg)) {
+                twitchClient.say(msg.channel, `@${msg.username} Tu dois être mod pour utiliser cette commande.`);
+                return;
+            }
+
+            const query = args.join(' ').trim();
+            if (!query) {
+                twitchClient.say(msg.channel, `@${msg.username} Utilisation: !jeu <catégorie>`);
+                return;
+            }
+
+            // Search for the category
+            const categories = await twitchClient.searchCategories(query);
+            if (categories.length === 0) {
+                twitchClient.say(msg.channel, `@${msg.username} Aucune catégorie trouvée pour "${query}".`);
+                return;
+            }
+
+            // Use the first result
+            const category = categories[0];
+            const success = await twitchClient.updateChannelInfo(null, category.id);
+            if (success) {
+                twitchClient.say(msg.channel, `🎮 Catégorie mise à jour: ${category.name}`);
+            } else {
+                twitchClient.say(msg.channel, `@${msg.username} Erreur lors de la mise à jour de la catégorie.`);
+            }
+            return;
+        }
+
         // === Commande publique: !guess <mot> (Cemantig) ===
         if (command === 'guess' || command === 'g') {
             const word = args[0]?.toLowerCase().trim();
@@ -1268,6 +1323,25 @@ async function start() {
             global.rotCount = 0;
             console.log('🫧 Compteur de rôts initialisé à 0');
         }
+
+        // Listen for alert events and save to database
+        twitchClient.on('alert', async (alert) => {
+            try {
+                await supabase.from('alerts').insert({
+                    type: alert.type,
+                    username: alert.username,
+                    user_id: alert.userId,
+                    amount: alert.bits || alert.total || alert.viewers || alert.months || null,
+                    tier: alert.tier || null,
+                    message: alert.message || null,
+                    created_at: new Date().toISOString()
+                });
+                console.log(`📢 Alert saved: ${alert.type} - ${alert.username}`);
+            } catch (e) {
+                console.error('Failed to save alert:', e);
+            }
+        });
+        console.log('📢 Alert listener active');
     } catch (error) {
         console.error('❌ Erreur de connexion à Twitch:', error);
         console.log('⚠️ Le bot continuera sans connexion au chat. Veuillez autoriser le bot via /auth/bot-authorize');
