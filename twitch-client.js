@@ -466,11 +466,21 @@ class TwitchClient extends EventEmitter {
 
         for (const sub of subscriptions) {
             try {
+                // channel.chat.message requires bot token, others require broadcaster token
+                const token = sub.type === 'channel.chat.message'
+                    ? this.botAccessToken
+                    : this.broadcasterAccessToken;
+
+                if (!token) {
+                    console.log(`⚠️ Skipping ${sub.type}: missing token`);
+                    continue;
+                }
+
                 const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
                     method: 'POST',
                     headers: {
                         'Client-ID': this.clientId,
-                        'Authorization': `Bearer ${this.broadcasterAccessToken}`,
+                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({

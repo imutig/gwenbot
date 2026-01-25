@@ -2,13 +2,16 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(135deg, #fff0f3 0%, #ffe4ec 100%);
+    background: var(--bg-primary, linear-gradient(135deg, #fff0f3 0%, #ffe4ec 100%));
+    background-color: var(--bg-base, #fff0f3);
     font-family: 'Poppins', sans-serif;
     padding: 1rem;
+    color: var(--text-primary);
 }
 
 .container.transparent {
     background: transparent !important;
+    background-color: transparent !important;
 }
 
 /* ==================== ALERTS ==================== */
@@ -26,10 +29,10 @@
     gap: 0.75rem;
     padding: 0.75rem 1.25rem;
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--bg-card);
     backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 133, 192, 0.3);
-    box-shadow: 0 4px 20px rgba(255, 133, 192, 0.15);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 20px var(--shadow-color);
     animation: slideIn 0.3s ease-out, pulse 2s infinite;
 }
 
@@ -54,7 +57,7 @@
 
     0%,
     100% {
-        box-shadow: 0 4px 20px rgba(255, 133, 192, 0.15);
+        box-shadow: 0 4px 20px var(--shadow-color);
     }
 
     50% {
@@ -68,7 +71,7 @@
 
 .alertText {
     font-weight: 600;
-    color: #8B4558;
+    color: var(--text-primary);
 }
 
 .container.transparent .alertText {
@@ -82,7 +85,7 @@
 }
 
 .alert.giftsub {
-    border-left: 4px solid #ff69b4;
+    border-left: 4px solid var(--pink-accent);
 }
 
 .alert.bits {
@@ -94,7 +97,7 @@
 }
 
 .alert.follow {
-    border-left: 4px solid #ff85c0;
+    border-left: 4px solid var(--pink-main);
 }
 
 /* ==================== CHAT ==================== */
@@ -103,10 +106,10 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: rgba(255, 255, 255, 0.85);
+    background: var(--bg-card);
     backdrop-filter: blur(15px);
     border-radius: 20px;
-    border: 1px solid rgba(255, 182, 193, 0.4);
+    border: 1px solid var(--border-color);
     overflow: hidden;
 }
 
@@ -134,12 +137,13 @@
 }
 
 .messages::-webkit-scrollbar-thumb {
-    background: rgba(255, 133, 192, 0.4);
+    background: var(--pink-main);
+    opacity: 0.4;
     border-radius: 3px;
 }
 
 .messages::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 133, 192, 0.6);
+    opacity: 0.6;
 }
 
 /* Individual message */
@@ -150,7 +154,7 @@
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.5);
+    background: var(--bg-card-hover);
     transition: background 0.2s;
 }
 
@@ -183,17 +187,12 @@
 
 .username::after {
     content: ':';
-    color: #8B4558;
-    opacity: 0.5;
+    color: var(--text-muted);
     margin-left: 0.15rem;
 }
 
-.container.transparent .username::after {
-    color: #fff;
-}
-
 .messageText {
-    color: #4a2c38;
+    color: var(--text-primary);
     font-size: 0.95rem;
     line-height: 1.4;
     word-break: break-word;
@@ -211,10 +210,10 @@
     gap: 0.5rem;
     padding: 0.75rem 1rem;
     margin-top: 0.75rem;
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--bg-card);
     border-radius: 12px;
     font-size: 0.85rem;
-    color: #8B4558;
+    color: var(--text-primary);
 }
 
 .statusDot {
