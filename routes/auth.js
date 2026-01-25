@@ -160,13 +160,43 @@ function createBotAuthRouter(deps) {
         const state = crypto.randomBytes(16).toString('hex');
         // All scopes for bot account
         const scopes = [
-            'user:bot',           // Send messages as bot
-            'user:read:chat',     // Read chat messages
-            'user:write:chat',    // Write chat messages
-            'moderator:manage:chat_messages',  // Delete messages
-            'moderator:manage:banned_users',   // Ban/unban users
-            'moderator:manage:announcements',  // Send announcements
-            'clips:edit',                      // Create clips
+            // Chat & Messaging
+            'user:bot',                         // Send messages as bot
+            'user:read:chat',                   // Read chat messages
+            'user:write:chat',                  // Write chat messages
+            'chat:read',                        // Read chat (IRC style)
+            'chat:edit',                        // Send chat (IRC style)
+            'whispers:read',                    // Read whispers
+            'whispers:edit',                    // Send whispers
+            'user:manage:whispers',             // Manage whispers
+            // Moderation
+            'moderator:manage:chat_messages',   // Delete messages
+            'moderator:manage:banned_users',    // Ban/unban users
+            'moderator:manage:announcements',   // Send announcements
+            'moderator:manage:automod',         // Manage AutoMod held messages
+            'moderator:manage:blocked_terms',   // Manage blocked terms
+            'moderator:manage:chat_settings',   // Manage chat settings
+            'moderator:manage:shoutouts',       // Send shoutouts
+            'moderator:manage:warnings',        // Warn users
+            'moderator:read:chatters',          // Read chatters list
+            'moderator:read:followers',         // Read followers
+            'moderator:read:automod_settings',  // Read AutoMod settings
+            'moderator:read:blocked_terms',     // Read blocked terms
+            'moderator:read:chat_settings',     // Read chat settings
+            'moderator:read:moderators',        // Read moderators list
+            'moderator:read:vips',              // Read VIPs list
+            'moderator:read:shield_mode',       // Read Shield Mode status
+            'moderator:read:shoutouts',         // Read shoutouts
+            'moderator:read:suspicious_users',  // Read suspicious users
+            'moderator:read:unban_requests',    // Read unban requests
+            // Clips & Content
+            'clips:edit',                       // Create clips
+            // User
+            'user:read:email',                  // Read email
+            'user:read:blocked_users',          // Read blocked users
+            'user:manage:blocked_users',        // Manage blocked users
+            'user:read:follows',                // Read follows
+            'user:read:subscriptions',          // Read subscriptions
         ].join(' ');
 
         const botLoginRedirectUri = `${baseUrl}/auth/bot-login-callback`;
@@ -286,14 +316,46 @@ function createBotAuthRouter(deps) {
         const state = crypto.randomBytes(16).toString('hex');
         // All scopes for broadcaster authorization
         const scopes = [
-            'channel:bot',                    // Bot badge
-            'moderator:read:chatters',        // List viewers
-            'channel:read:subscriptions',     // See subscribers
-            'bits:read',                      // See bits
-            'channel:read:redemptions',       // See point redemptions
-            'channel:manage:polls',           // Create/manage polls
-            'channel:read:predictions',       // See predictions
-            'channel:read:hype_train',        // See hype trains
+            // Channel Bot Permission
+            'channel:bot',                      // Bot badge in channel
+            // Channel Read Permissions
+            'channel:read:subscriptions',       // See subscribers
+            'channel:read:redemptions',         // See point redemptions
+            'channel:read:hype_train',          // See hype trains
+            'channel:read:predictions',         // See predictions
+            'channel:read:polls',               // See polls
+            'channel:read:goals',               // See Creator Goals
+            'channel:read:charity',             // See charity campaigns
+            'channel:read:vips',                // See VIPs list
+            'channel:read:editors',             // See editors list
+            'channel:read:ads',                 // See ads info
+            'channel:read:guest_star',          // See Guest Star
+            // Channel Manage Permissions
+            'channel:manage:polls',             // Create/manage polls
+            'channel:manage:predictions',       // Create/manage predictions
+            'channel:manage:redemptions',       // Manage point rewards
+            'channel:manage:vips',              // Add/remove VIPs
+            'channel:manage:raids',             // Start/cancel raids
+            'channel:manage:broadcast',         // Update stream title/game
+            'channel:manage:schedule',          // Manage stream schedule
+            'channel:manage:videos',            // Manage videos
+            'channel:manage:ads',               // Manage ads
+            'channel:manage:guest_star',        // Manage Guest Star
+            'channel:edit:commercial',          // Run commercials
+            // Bits & Analytics
+            'bits:read',                        // See bits and leaderboard
+            'analytics:read:extensions',        // Extension analytics
+            'analytics:read:games',             // Game analytics
+            // Moderation Read (as broadcaster)
+            'moderator:read:chatters',          // List viewers
+            'moderator:read:followers',         // List followers
+            'moderator:read:shield_mode',       // Shield Mode status
+            'moderator:read:automod_settings',  // AutoMod settings
+            'moderation:read',                  // Moderation data
+            // User permissions
+            'user:read:email',                  // Read email
+            'user:edit:broadcast',              // Edit broadcast config
+            'user:read:broadcast',              // Read broadcast config
         ].join(' ');
 
         const botAuthorizeRedirectUri = `${baseUrl}/auth/bot-authorize-callback`;
