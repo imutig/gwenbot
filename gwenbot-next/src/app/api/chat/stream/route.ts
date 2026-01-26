@@ -82,6 +82,8 @@ export async function GET(request: NextRequest) {
                             id,
                             content,
                             sent_at,
+                            badges,
+                            color,
                             player:players(username)
                         `)
                         .gt('id', lastMessageId)
@@ -93,14 +95,18 @@ export async function GET(request: NextRequest) {
                             const playerData = msg.player as unknown as { username: string } | null
                             const username = playerData?.username || 'Unknown'
 
+                            // Convert badge strings to badge objects
+                            const badgeArray = (msg.badges as string[] | null) || []
+                            const badges = badgeArray.map(b => ({ set_id: b, id: '1' }))
+
                             const messageData = {
                                 type: 'message',
                                 id: msg.id.toString(),
                                 username: username,
                                 displayName: username,
                                 message: msg.content,
-                                color: getRandomColor(username),
-                                badges: [],
+                                color: msg.color || getRandomColor(username),
+                                badges: badges,
                                 timestamp: msg.sent_at
                             }
 

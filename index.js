@@ -439,12 +439,17 @@ async function handleMessage(msg) {
         const playerId = await getOrCreatePlayer(username);
         const emotes = extractEmotes(msg.message);
 
+        // Extract badge set_ids (broadcaster, moderator, vip, subscriber, etc.)
+        const badgeIds = msg.badges?.map(b => b.set_id) || [];
+
         await supabase
             .from('chat_messages')
             .insert({
                 player_id: playerId,
                 content: msg.message,
-                emojis: emotes.length > 0 ? emotes : null
+                emojis: emotes.length > 0 ? emotes : null,
+                badges: badgeIds.length > 0 ? badgeIds : null,
+                color: msg.color || null
             });
 
         await trackViewerPresence(playerId);

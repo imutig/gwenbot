@@ -43,6 +43,9 @@
     border-radius: 20px;
     border: 1px solid var(--border-color);
     overflow: hidden;
+    min-height: 0;
+    /* Important for flex children to respect overflow */
+    max-height: 100%;
 }
 
 .container.transparent .chatContainer {
@@ -95,6 +98,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    min-height: 0;
+    /* Critical for scrolling in flex container */
 }
 
 /* Custom scrollbar */
