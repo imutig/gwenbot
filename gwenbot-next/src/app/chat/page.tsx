@@ -1,8 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import styles from './page.module.css'
+
+interface Badge {
+    set_id: string
+    id: string
+}
 
 interface ChatMessage {
     id: string
@@ -10,9 +15,8 @@ interface ChatMessage {
     displayName: string
     message: string
     color: string
-    badges: string[]
+    badges: Badge[]
     timestamp: Date
-    emotes?: { id: string, name: string, positions: string }[]
 }
 
 interface Alert {
@@ -25,21 +29,44 @@ interface Alert {
     timestamp: Date
 }
 
-export default function ChatPage() {
+function ChatContent() {
     const searchParams = useSearchParams()
     const isTransparent = searchParams.get('transparent') === 'true'
-    const showAlerts = searchParams.get('alerts') !== 'false'
+    const hideAlerts = searchParams.get('alerts') === 'false'
 
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [alerts, setAlerts] = useState<Alert[]>([])
     const [isConnected, setIsConnected] = useState(false)
-    const messagesEndRef = useRef<HTMLDivElement>(null)
+    const [isLoading, setIsLoading] = useState(true)
+    const messagesContainerRef = useRef<HTMLDivElement>(null)
     const eventSourceRef = useRef<EventSource | null>(null)
 
-    // Auto-scroll to bottom
+    // Load initial data on mount
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [messages])
+        const loadInitialData = async () => {
+            try {
+                // Load recent messages
+                const messagesRes = await fetch('/api/chat/history?limit=50')
+                if (messagesRes.ok) {
+                    const data = await messagesRes.json()
+                    setMessages(data.messages || [])
+                }
+
+                // Load recent alerts
+                const alertsRes = await fetch('/api/chat/alerts?limit=20')
+                if (alertsRes.ok) {
+                    const data = await alertsRes.json()
+                    setAlerts(data.alerts || [])
+                }
+            } catch (e) {
+                console.error('Failed to load initial data:', e)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        loadInitialData()
+    }, [])
 
     // Connect to SSE for real-time messages
     useEffect(() => {
@@ -64,13 +91,11 @@ export default function ChatPage() {
                             message: data.message,
                             color: data.color || '#ff85c0',
                             badges: data.badges || [],
-                            timestamp: new Date(),
-                            emotes: data.emotes
+                            timestamp: new Date()
                         }
 
                         setMessages(prev => {
                             const updated = [...prev, newMessage]
-                            // Keep only last 100 messages
                             return updated.slice(-100)
                         })
                     } else if (data.type === 'alert') {
@@ -85,15 +110,9 @@ export default function ChatPage() {
                         }
 
                         setAlerts(prev => {
-                            const updated = [...prev, newAlert]
-                            // Keep only last 10 alerts
-                            return updated.slice(-10)
+                            const updated = [newAlert, ...prev]
+                            return updated.slice(0, 20)
                         })
-
-                        // Remove alert after 10 seconds
-                        setTimeout(() => {
-                            setAlerts(prev => prev.filter(a => a.id !== newAlert.id))
-                        }, 10000)
                     }
                 } catch (e) {
                     console.error('Failed to parse SSE message:', e)
@@ -116,16 +135,19 @@ export default function ChatPage() {
     }, [])
 
     // Get badge icon
-    const getBadgeIcon = (badge: string) => {
-        switch (badge) {
+    const getBadgeIcon = (badge: Badge | string) => {
+        const badgeId = typeof badge === 'string' ? badge : badge.set_id
+        switch (badgeId) {
             case 'broadcaster':
-                return '👑'
+                return { icon: '👑', label: 'Broadcaster', className: styles.badgeBroadcaster }
             case 'moderator':
-                return '🗡️'
+                return { icon: '🗡️', label: 'Mod', className: styles.badgeMod }
             case 'vip':
-                return '💎'
+                return { icon: '💎', label: 'VIP', className: styles.badgeVip }
             case 'subscriber':
-                return '⭐'
+                return { icon: '⭐', label: 'Sub', className: styles.badgeSub }
+            case 'founder':
+                return { icon: '🏆', label: 'Founder', className: styles.badgeFounder }
             default:
                 return null
         }
@@ -135,73 +157,115 @@ export default function ChatPage() {
     const getAlertContent = (alert: Alert) => {
         switch (alert.type) {
             case 'sub':
-                return { icon: '⭐', text: `${alert.username} s'est abonné(e) !` }
+                return { icon: '⭐', text: `${alert.username} s'est abonné(e)`, color: '#ffd700' }
             case 'resub':
-                return { icon: '🌟', text: `${alert.username} se réabonne (${alert.amount} mois) !` }
+                return { icon: '🌟', text: `${alert.username} (${alert.amount} mois)`, color: '#ffd700' }
             case 'giftsub':
-                return { icon: '🎁', text: `${alert.username} offre ${alert.amount} sub(s) !` }
+                return { icon: '🎁', text: `${alert.username} offre ${alert.amount} sub(s)`, color: '#ff69b4' }
             case 'bits':
-                return { icon: '💎', text: `${alert.username} donne ${alert.amount} bits !` }
+                return { icon: '💎', text: `${alert.username} - ${alert.amount} bits`, color: '#9146ff' }
             case 'raid':
-                return { icon: '🚀', text: `Raid de ${alert.username} avec ${alert.amount} viewers !` }
+                return { icon: '🚀', text: `Raid de ${alert.username} (${alert.amount})`, color: '#00ff7f' }
             case 'follow':
-                return { icon: '💖', text: `${alert.username} follow !` }
+                return { icon: '💖', text: `${alert.username} follow`, color: '#ff85c0' }
             default:
-                return { icon: '✨', text: alert.message || '' }
+                return { icon: '✨', text: alert.message || '', color: '#ff85c0' }
         }
+    }
+
+    // Format time
+    const formatTime = (date: Date) => {
+        return new Date(date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    }
+
+    if (isLoading) {
+        return (
+            <div className={`${styles.container} ${isTransparent ? styles.transparent : ''}`}>
+                <div className={styles.loading}>Chargement du chat...</div>
+            </div>
+        )
     }
 
     return (
         <div className={`${styles.container} ${isTransparent ? styles.transparent : ''}`}>
-            {/* Alerts Section */}
-            {showAlerts && alerts.length > 0 && (
-                <div className={styles.alertsContainer}>
-                    {alerts.map(alert => {
-                        const content = getAlertContent(alert)
-                        return (
-                            <div key={alert.id} className={`${styles.alert} ${styles[alert.type]}`}>
-                                <span className={styles.alertIcon}>{content.icon}</span>
-                                <span className={styles.alertText}>{content.text}</span>
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
-
-            {/* Chat Messages */}
-            <div className={styles.chatContainer}>
-                <div className={styles.messages}>
-                    {messages.map(msg => (
-                        <div key={msg.id} className={styles.message}>
-                            <div className={styles.messageHeader}>
-                                {msg.badges.map((badge, i) => {
-                                    const icon = getBadgeIcon(badge)
-                                    return icon ? (
-                                        <span key={i} className={styles.badge}>{icon}</span>
-                                    ) : null
-                                })}
-                                <span
-                                    className={styles.username}
-                                    style={{ color: msg.color }}
-                                >
-                                    {msg.displayName}
-                                </span>
-                            </div>
-                            <span className={styles.messageText}>{msg.message}</span>
+            <div className={styles.mainLayout}>
+                {/* Chat Messages */}
+                <div className={styles.chatContainer}>
+                    <div className={styles.chatHeader}>
+                        <span className={styles.chatTitle}>💬 Chat en direct</span>
+                        <div className={styles.connectionStatus}>
+                            <div className={`${styles.statusDot} ${isConnected ? styles.connected : styles.disconnected}`} />
+                            <span>{messages.length}</span>
                         </div>
-                    ))}
-                    <div ref={messagesEndRef} />
+                    </div>
+                    <div className={styles.messages} ref={messagesContainerRef}>
+                        {messages.map(msg => (
+                            <div key={msg.id} className={styles.message}>
+                                <div className={styles.messageHeader}>
+                                    {msg.badges.map((badge, i) => {
+                                        const badgeInfo = getBadgeIcon(badge)
+                                        return badgeInfo ? (
+                                            <span
+                                                key={i}
+                                                className={`${styles.badge} ${badgeInfo.className || ''}`}
+                                                title={badgeInfo.label}
+                                            >
+                                                {badgeInfo.icon}
+                                            </span>
+                                        ) : null
+                                    })}
+                                    <span
+                                        className={styles.username}
+                                        style={{ color: msg.color }}
+                                    >
+                                        {msg.displayName}
+                                    </span>
+                                </div>
+                                <span className={styles.messageText}>{msg.message}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            </div>
 
-            {/* Connection Status (only in non-transparent mode) */}
-            {!isTransparent && (
-                <div className={styles.statusBar}>
-                    <div className={`${styles.statusDot} ${isConnected ? styles.connected : styles.disconnected}`} />
-                    <span>{isConnected ? 'Connecté' : 'Déconnecté'}</span>
-                    <span className={styles.messageCount}>{messages.length} messages</span>
-                </div>
-            )}
+                {/* Alerts Sidebar */}
+                {!hideAlerts && (
+                    <div className={styles.alertsSidebar}>
+                        <div className={styles.alertsHeader}>
+                            <span>📢 Dernières alertes</span>
+                        </div>
+                        <div className={styles.alertsList}>
+                            {alerts.length === 0 ? (
+                                <div className={styles.noAlerts}>Aucune alerte récente</div>
+                            ) : (
+                                alerts.map(alert => {
+                                    const content = getAlertContent(alert)
+                                    return (
+                                        <div
+                                            key={alert.id}
+                                            className={`${styles.alertItem} ${styles[alert.type]}`}
+                                            style={{ borderLeftColor: content.color }}
+                                        >
+                                            <span className={styles.alertIcon}>{content.icon}</span>
+                                            <div className={styles.alertContent}>
+                                                <span className={styles.alertText}>{content.text}</span>
+                                                <span className={styles.alertTime}>{formatTime(alert.timestamp)}</span>
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
+    )
+}
+
+export default function ChatPage() {
+    return (
+        <Suspense fallback={<div className={styles.loading}>Chargement...</div>}>
+            <ChatContent />
+        </Suspense>
     )
 }
