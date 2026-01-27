@@ -530,7 +530,7 @@ class TwitchClient extends EventEmitter {
                     message: event.message.text,
                     messageId: event.message_id,
                     badges: event.badges || [],
-                    isMod: event.badges?.some(b => b.set_id === 'moderator') || false,
+                    isMod: event.badges?.some(b => b.set_id === 'moderator' || b.set_id === 'lead_moderator') || false,
                     isBroadcaster: event.chatter_user_id === event.broadcaster_user_id,
                     isVip: event.badges?.some(b => b.set_id === 'vip') || false,
                     fragments: event.message.fragments || [],
