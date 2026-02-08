@@ -7,6 +7,7 @@ const { gameSession, startSession, stopSession, getSessionStatus } = require('./
 const embeddings = require('./utils/word2vec-embeddings');
 const { signRequest } = require('./utils/hmac');
 const path = require('path');
+const { initDiscordClient, getSpotifyActivity, isDiscordReady, startDebugPolling } = require('./discord-client');
 
 // Configuration
 const TWITCH_CLIENT_ID = process.env.TWITCH_CLIENT_ID;
@@ -815,6 +816,40 @@ async function handleMessage(msg) {
             return;
         }
 
+        // === Commande publique: !musique (Spotify via Discord) ===
+        if (command === 'musique' || command === 'music' || command === 'song' || command === 'spotify') {
+            if (!isDiscordReady()) {
+                twitchClient.say(msg.channel, `@${msg.username} 🎵 Discord n'est pas connecté !`);
+                return;
+            }
+
+            try {
+                const spotify = await getSpotifyActivity();
+
+                if (spotify.error) {
+                    twitchClient.say(msg.channel, `@${msg.username} ⚠️ Erreur: ${spotify.error}`);
+                    return;
+                }
+
+                if (spotify.notPlaying) {
+                    twitchClient.say(msg.channel, `@${msg.username} 🎵 Pas de musique en cours sur Spotify !`);
+                    return;
+                }
+
+                // Format: 🎵 Song - Artist (Album)
+                let response = `🎵 ${spotify.song} - ${spotify.artist}`;
+                if (spotify.album) {
+                    response += ` (${spotify.album})`;
+                }
+
+                twitchClient.say(msg.channel, response);
+            } catch (error) {
+                console.error('Music command error:', error);
+                twitchClient.say(msg.channel, `@${msg.username} ⚠️ Erreur lors de la récupération de la musique.`);
+            }
+            return;
+        }
+
         // === Commande mod: !announce <message> [color] ===
         if (command === 'announce' || command === 'annonce') {
             if (!isModerator(msg)) {
@@ -1300,6 +1335,10 @@ async function start() {
 
     // Initialize Twitch client
     await initializeTwitchClient();
+
+    // Initialize Discord client (for Spotify presence)
+    await initDiscordClient();
+    startDebugPolling(); // DEBUG: Log Spotify every 5s
 
     // Start web server (passing twitchClient for bot auth routes)
     startServer(twitchClient);
