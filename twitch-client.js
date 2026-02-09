@@ -18,14 +18,24 @@ class TwitchClient extends EventEmitter {
         this.broadcasterUserId = config.broadcasterUserId;
         this.channel = config.channel;
 
-        // WebSocket state
+        // WebSocket state (bot connection - for chat messages)
         this.ws = null;
         this.sessionId = null;
         this.connected = false;
         this.reconnecting = false;
         this.keepaliveTimeout = null;
+        this.keepaliveTimeoutSeconds = 10;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 10;
+
+        // Broadcaster WebSocket (for sub/follow/raid/cheer events)
+        this.broadcasterWs = null;
+        this.broadcasterSessionId = null;
+        this.broadcasterConnected = false;
+        this.broadcasterReconnecting = false;
+        this.broadcasterKeepaliveTimeout = null;
+        this.broadcasterKeepaliveTimeoutSeconds = 10;
+        this.broadcasterReconnectAttempts = 0;
 
         // Token state
         this.appAccessToken = null;
@@ -298,13 +308,26 @@ class TwitchClient extends EventEmitter {
             console.log('⚠️ Bot will start but cannot send messages until both authorizations are complete.');
         }
 
+        // Connect bot WebSocket (for chat messages)
+        await this.connectBotWebSocket();
+
+        // Connect broadcaster WebSocket (for subs/follows/raids/cheers)
+        if (this.broadcasterAccessToken) {
+            await this.connectBroadcasterWebSocket();
+        }
+    }
+
+    /**
+     * Connect the bot WebSocket (for channel.chat.message)
+     */
+    async connectBotWebSocket() {
         return new Promise((resolve, reject) => {
-            console.log('🔌 Connecting to EventSub WebSocket...');
+            console.log('🔌 Connecting to EventSub WebSocket (bot)...');
 
             this.ws = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
 
             this.ws.on('open', () => {
-                console.log('✅ EventSub WebSocket connected');
+                console.log('✅ EventSub WebSocket connected (bot)');
                 this.connected = true;
                 this.reconnecting = false;
                 this.reconnectAttempts = 0;
@@ -313,36 +336,88 @@ class TwitchClient extends EventEmitter {
             this.ws.on('message', async (data) => {
                 try {
                     const message = JSON.parse(data.toString());
-                    await this.handleWebSocketMessage(message);
+                    await this.handleBotWebSocketMessage(message);
 
                     if (message.metadata?.message_type === 'session_welcome') {
                         resolve();
                     }
                 } catch (error) {
-                    console.error('❌ Error parsing WebSocket message:', error);
+                    console.error('❌ Error parsing bot WebSocket message:', error);
                 }
             });
 
             this.ws.on('close', (code, reason) => {
-                console.log(`⚠️ EventSub WebSocket closed: ${code} - ${reason}`);
+                console.log(`⚠️ Bot WebSocket closed: ${code} - ${reason}`);
                 this.connected = false;
                 this.sessionId = null;
                 clearTimeout(this.keepaliveTimeout);
 
-                if (!this.reconnecting && code !== 1000) {
-                    this.attemptReconnect();
+                if (!this.reconnecting) {
+                    this.attemptReconnect('bot');
                 }
             });
 
             this.ws.on('error', (error) => {
-                console.error('❌ EventSub WebSocket error:', error);
+                console.error('❌ Bot WebSocket error:', error);
                 reject(error);
             });
 
-            // Timeout for initial connection
             setTimeout(() => {
                 if (!this.connected) {
-                    reject(new Error('Connection timeout'));
+                    reject(new Error('Bot connection timeout'));
+                }
+            }, 30000);
+        });
+    }
+
+    /**
+     * Connect the broadcaster WebSocket (for subs, follows, raids, cheers)
+     */
+    async connectBroadcasterWebSocket() {
+        return new Promise((resolve, reject) => {
+            console.log('🔌 Connecting to EventSub WebSocket (broadcaster)...');
+
+            this.broadcasterWs = new WebSocket('wss://eventsub.wss.twitch.tv/ws');
+
+            this.broadcasterWs.on('open', () => {
+                console.log('✅ EventSub WebSocket connected (broadcaster)');
+                this.broadcasterConnected = true;
+                this.broadcasterReconnecting = false;
+                this.broadcasterReconnectAttempts = 0;
+            });
+
+            this.broadcasterWs.on('message', async (data) => {
+                try {
+                    const message = JSON.parse(data.toString());
+                    await this.handleBroadcasterWebSocketMessage(message);
+
+                    if (message.metadata?.message_type === 'session_welcome') {
+                        resolve();
+                    }
+                } catch (error) {
+                    console.error('❌ Error parsing broadcaster WebSocket message:', error);
+                }
+            });
+
+            this.broadcasterWs.on('close', (code, reason) => {
+                console.log(`⚠️ Broadcaster WebSocket closed: ${code} - ${reason}`);
+                this.broadcasterConnected = false;
+                this.broadcasterSessionId = null;
+                clearTimeout(this.broadcasterKeepaliveTimeout);
+
+                if (!this.broadcasterReconnecting) {
+                    this.attemptReconnect('broadcaster');
+                }
+            });
+
+            this.broadcasterWs.on('error', (error) => {
+                console.error('❌ Broadcaster WebSocket error:', error);
+                reject(error);
+            });
+
+            setTimeout(() => {
+                if (!this.broadcasterConnected) {
+                    reject(new Error('Broadcaster connection timeout'));
                 }
             }, 30000);
         });
@@ -351,19 +426,23 @@ class TwitchClient extends EventEmitter {
     /**
      * Handle incoming WebSocket messages
      */
-    async handleWebSocketMessage(message) {
+    /**
+     * Handle incoming bot WebSocket messages
+     */
+    async handleBotWebSocketMessage(message) {
         const messageType = message.metadata?.message_type;
 
         switch (messageType) {
             case 'session_welcome':
                 this.sessionId = message.payload.session.id;
-                console.log(`✅ EventSub session established: ${this.sessionId}`);
-                this.resetKeepalive(message.payload.session.keepalive_timeout_seconds);
-                await this.subscribeToEvents();
+                this.keepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds || 10;
+                console.log(`✅ Bot EventSub session established: ${this.sessionId} (keepalive: ${this.keepaliveTimeoutSeconds}s)`);
+                this.resetKeepalive('bot');
+                await this.subscribeToBotEvents();
                 break;
 
             case 'session_keepalive':
-                this.resetKeepalive(10);
+                this.resetKeepalive('bot');
                 break;
 
             case 'notification':
@@ -371,144 +450,154 @@ class TwitchClient extends EventEmitter {
                 break;
 
             case 'session_reconnect':
-                console.log('🔄 EventSub requesting reconnect...');
+                console.log('🔄 Bot EventSub requesting reconnect...');
                 const reconnectUrl = message.payload.session.reconnect_url;
-                await this.handleReconnect(reconnectUrl);
+                await this.handleReconnect(reconnectUrl, 'bot');
                 break;
 
             case 'revocation':
-                console.log('⚠️ Subscription revoked:', message.payload.subscription);
+                console.log('⚠️ Bot subscription revoked:', message.payload.subscription);
                 break;
-
-            default:
-                console.log('📨 Unknown message type:', messageType);
         }
     }
 
     /**
-     * Reset keepalive timeout
+     * Handle incoming broadcaster WebSocket messages
      */
-    resetKeepalive(timeoutSeconds) {
-        clearTimeout(this.keepaliveTimeout);
-        this.keepaliveTimeout = setTimeout(() => {
-            console.log('⚠️ Keepalive timeout - reconnecting...');
-            this.ws?.close();
-            this.attemptReconnect();
-        }, (timeoutSeconds + 10) * 1000);
+    async handleBroadcasterWebSocketMessage(message) {
+        const messageType = message.metadata?.message_type;
+
+        switch (messageType) {
+            case 'session_welcome':
+                this.broadcasterSessionId = message.payload.session.id;
+                this.broadcasterKeepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds || 10;
+                console.log(`✅ Broadcaster EventSub session established: ${this.broadcasterSessionId} (keepalive: ${this.broadcasterKeepaliveTimeoutSeconds}s)`);
+                this.resetKeepalive('broadcaster');
+                await this.subscribeToBroadcasterEvents();
+                break;
+
+            case 'session_keepalive':
+                this.resetKeepalive('broadcaster');
+                break;
+
+            case 'notification':
+                await this.handleNotification(message.payload);
+                break;
+
+            case 'session_reconnect':
+                console.log('🔄 Broadcaster EventSub requesting reconnect...');
+                const bReconnectUrl = message.payload.session.reconnect_url;
+                await this.handleReconnect(bReconnectUrl, 'broadcaster');
+                break;
+
+            case 'revocation':
+                console.log('⚠️ Broadcaster subscription revoked:', message.payload.subscription);
+                break;
+        }
+    }
+
+    /**
+     * Reset keepalive timeout for a specific connection
+     */
+    resetKeepalive(type) {
+        if (type === 'bot') {
+            clearTimeout(this.keepaliveTimeout);
+            this.keepaliveTimeout = setTimeout(() => {
+                console.log('⚠️ Bot keepalive timeout - reconnecting...');
+                this.ws?.close();
+                this.attemptReconnect('bot');
+            }, (this.keepaliveTimeoutSeconds + 10) * 1000);
+        } else {
+            clearTimeout(this.broadcasterKeepaliveTimeout);
+            this.broadcasterKeepaliveTimeout = setTimeout(() => {
+                console.log('⚠️ Broadcaster keepalive timeout - reconnecting...');
+                this.broadcasterWs?.close();
+                this.attemptReconnect('broadcaster');
+            }, (this.broadcasterKeepaliveTimeoutSeconds + 10) * 1000);
+        }
     }
 
     /**
      * Subscribe to chat message events
      */
-    async subscribeToEvents() {
-        if (!this.sessionId) {
-            console.error('❌ Cannot subscribe: no session ID');
+    /**
+     * Subscribe bot events (chat messages only - uses bot token + bot session)
+     */
+    async subscribeToBotEvents() {
+        if (!this.sessionId || !this.botAccessToken) {
+            console.error('❌ Cannot subscribe bot events: missing session or token');
             return;
         }
 
-        // WebSocket transport requires User Access Token, not App Access Token
-        if (!this.botAccessToken) {
-            console.error('❌ Cannot subscribe: no bot token. Visit /auth/bot-login');
-            return;
-        }
-
-        // List of events to subscribe to
-        const subscriptions = [
-            // Chat messages
-            {
-                type: 'channel.chat.message',
-                version: '1',
-                condition: {
-                    broadcaster_user_id: this.broadcasterUserId,
-                    user_id: this.botUserId
-                }
-            },
-            // Subscriptions
-            {
-                type: 'channel.subscribe',
-                version: '1',
-                condition: { broadcaster_user_id: this.broadcasterUserId }
-            },
-            // Resubscriptions
-            {
-                type: 'channel.subscription.message',
-                version: '1',
-                condition: { broadcaster_user_id: this.broadcasterUserId }
-            },
-            // Gift subs
-            {
-                type: 'channel.subscription.gift',
-                version: '1',
-                condition: { broadcaster_user_id: this.broadcasterUserId }
-            },
-            // Bits/Cheers
-            {
-                type: 'channel.cheer',
-                version: '1',
-                condition: { broadcaster_user_id: this.broadcasterUserId }
-            },
-            // Raids
-            {
-                type: 'channel.raid',
-                version: '1',
-                condition: { to_broadcaster_user_id: this.broadcasterUserId }
-            },
-            // Follows
-            {
-                type: 'channel.follow',
-                version: '2',
-                condition: {
-                    broadcaster_user_id: this.broadcasterUserId,
-                    moderator_user_id: this.broadcasterUserId
-                }
+        await this.createSubscription({
+            type: 'channel.chat.message',
+            version: '1',
+            condition: {
+                broadcaster_user_id: this.broadcasterUserId,
+                user_id: this.botUserId
             }
+        }, this.botAccessToken, this.sessionId);
+    }
+
+    /**
+     * Subscribe broadcaster events (subs, follows, raids, cheers - uses broadcaster token + broadcaster session)
+     */
+    async subscribeToBroadcasterEvents() {
+        if (!this.broadcasterSessionId || !this.broadcasterAccessToken) {
+            console.error('❌ Cannot subscribe broadcaster events: missing session or token');
+            return;
+        }
+
+        const subscriptions = [
+            { type: 'channel.subscribe', version: '1', condition: { broadcaster_user_id: this.broadcasterUserId } },
+            { type: 'channel.subscription.message', version: '1', condition: { broadcaster_user_id: this.broadcasterUserId } },
+            { type: 'channel.subscription.gift', version: '1', condition: { broadcaster_user_id: this.broadcasterUserId } },
+            { type: 'channel.cheer', version: '1', condition: { broadcaster_user_id: this.broadcasterUserId } },
+            { type: 'channel.raid', version: '1', condition: { to_broadcaster_user_id: this.broadcasterUserId } },
+            { type: 'channel.follow', version: '2', condition: { broadcaster_user_id: this.broadcasterUserId, moderator_user_id: this.broadcasterUserId } }
         ];
 
         for (const sub of subscriptions) {
-            try {
-                // channel.chat.message requires bot token, others require broadcaster token
-                const token = sub.type === 'channel.chat.message'
-                    ? this.botAccessToken
-                    : this.broadcasterAccessToken;
+            await this.createSubscription(sub, this.broadcasterAccessToken, this.broadcasterSessionId);
+        }
+    }
 
-                if (!token) {
-                    console.log(`⚠️ Skipping ${sub.type}: missing token`);
-                    continue;
-                }
-
-                const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
-                    method: 'POST',
-                    headers: {
-                        'Client-ID': this.clientId,
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        type: sub.type,
-                        version: sub.version,
-                        condition: sub.condition,
-                        transport: {
-                            method: 'websocket',
-                            session_id: this.sessionId
-                        }
-                    })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    console.log(`✅ Subscribed to ${sub.type}`);
-                } else {
-                    // Don't spam errors for missing scopes, just log once
-                    if (data.message?.includes('scope')) {
-                        console.log(`⚠️ Missing scope for ${sub.type}`);
-                    } else {
-                        console.error(`❌ Failed to subscribe to ${sub.type}:`, data.message || data);
+    /**
+     * Create a single EventSub subscription
+     */
+    async createSubscription(sub, token, sessionId) {
+        try {
+            const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
+                method: 'POST',
+                headers: {
+                    'Client-ID': this.clientId,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    type: sub.type,
+                    version: sub.version,
+                    condition: sub.condition,
+                    transport: {
+                        method: 'websocket',
+                        session_id: sessionId
                     }
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log(`✅ Subscribed to ${sub.type}`);
+            } else {
+                if (data.message?.includes('scope')) {
+                    console.log(`⚠️ Missing scope for ${sub.type}`);
+                } else {
+                    console.error(`❌ Failed to subscribe to ${sub.type}:`, data.message || data);
                 }
-            } catch (error) {
-                console.error(`❌ Subscription error for ${sub.type}:`, error);
             }
+        } catch (error) {
+            console.error(`❌ Subscription error for ${sub.type}:`, error);
         }
     }
 
@@ -606,51 +695,79 @@ class TwitchClient extends EventEmitter {
                 break;
         }
     }
-
     /**
-     * Handle reconnection request
+     * Handle reconnection request from Twitch
      */
-    async handleReconnect(reconnectUrl) {
-        this.reconnecting = true;
-        const oldWs = this.ws;
+    async handleReconnect(reconnectUrl, type = 'bot') {
+        console.log(`🔄 Reconnecting ${type} to:`, reconnectUrl);
 
-        this.ws = new WebSocket(reconnectUrl);
-
-        this.ws.on('open', () => {
-            console.log('✅ Reconnected to new EventSub endpoint');
-            oldWs.close();
-        });
-
-        this.ws.on('message', async (data) => {
-            const message = JSON.parse(data.toString());
-            await this.handleWebSocketMessage(message);
-        });
+        if (type === 'bot') {
+            this.reconnecting = true;
+            const oldWs = this.ws;
+            this.ws = new WebSocket(reconnectUrl);
+            this.ws.on('open', () => {
+                console.log('✅ Reconnected bot to new EventSub endpoint');
+                oldWs.close();
+            });
+            this.ws.on('message', async (data) => {
+                const message = JSON.parse(data.toString());
+                await this.handleBotWebSocketMessage(message);
+            });
+        } else {
+            this.broadcasterReconnecting = true;
+            const oldWs = this.broadcasterWs;
+            this.broadcasterWs = new WebSocket(reconnectUrl);
+            this.broadcasterWs.on('open', () => {
+                console.log('✅ Reconnected broadcaster to new EventSub endpoint');
+                oldWs.close();
+            });
+            this.broadcasterWs.on('message', async (data) => {
+                const message = JSON.parse(data.toString());
+                await this.handleBroadcasterWebSocketMessage(message);
+            });
+        }
     }
 
     /**
      * Attempt to reconnect with exponential backoff
      */
-    attemptReconnect() {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('❌ Max reconnect attempts reached');
-            this.emit('disconnected');
-            return;
-        }
-
-        this.reconnecting = true;
-        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-        this.reconnectAttempts++;
-
-        console.log(`🔄 Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts})...`);
-
-        setTimeout(async () => {
-            try {
-                await this.connect();
-            } catch (error) {
-                console.error('❌ Reconnection failed:', error);
-                this.attemptReconnect();
+    attemptReconnect(type = 'bot') {
+        if (type === 'bot') {
+            if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                console.error('❌ Max bot reconnect attempts reached');
+                this.emit('disconnected');
+                return;
             }
-        }, delay);
+            this.reconnecting = true;
+            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+            this.reconnectAttempts++;
+            console.log(`🔄 Reconnecting bot in ${delay / 1000}s (attempt ${this.reconnectAttempts})...`);
+            setTimeout(async () => {
+                try {
+                    await this.connectBotWebSocket();
+                } catch (error) {
+                    console.error('❌ Bot reconnection failed:', error);
+                    this.attemptReconnect('bot');
+                }
+            }, delay);
+        } else {
+            if (this.broadcasterReconnectAttempts >= this.maxReconnectAttempts) {
+                console.error('❌ Max broadcaster reconnect attempts reached');
+                return;
+            }
+            this.broadcasterReconnecting = true;
+            const delay = Math.min(1000 * Math.pow(2, this.broadcasterReconnectAttempts), 30000);
+            this.broadcasterReconnectAttempts++;
+            console.log(`🔄 Reconnecting broadcaster in ${delay / 1000}s (attempt ${this.broadcasterReconnectAttempts})...`);
+            setTimeout(async () => {
+                try {
+                    await this.connectBroadcasterWebSocket();
+                } catch (error) {
+                    console.error('❌ Broadcaster reconnection failed:', error);
+                    this.attemptReconnect('broadcaster');
+                }
+            }, delay);
+        }
     }
 
     // ==================== SEND CHAT MESSAGE ====================
