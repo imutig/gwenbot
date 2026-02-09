@@ -432,17 +432,19 @@ class TwitchClient extends EventEmitter {
     async handleBotWebSocketMessage(message) {
         const messageType = message.metadata?.message_type;
 
+        // Reset keepalive on ANY message (Twitch skips keepalives when sending notifications)
+        this.resetKeepalive('bot');
+
         switch (messageType) {
             case 'session_welcome':
                 this.sessionId = message.payload.session.id;
                 this.keepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds || 10;
                 console.log(`✅ Bot EventSub session established: ${this.sessionId} (keepalive: ${this.keepaliveTimeoutSeconds}s)`);
-                this.resetKeepalive('bot');
                 await this.subscribeToBotEvents();
                 break;
 
             case 'session_keepalive':
-                this.resetKeepalive('bot');
+                // Already handled above
                 break;
 
             case 'notification':
@@ -467,17 +469,19 @@ class TwitchClient extends EventEmitter {
     async handleBroadcasterWebSocketMessage(message) {
         const messageType = message.metadata?.message_type;
 
+        // Reset keepalive on ANY message (Twitch skips keepalives when sending notifications)
+        this.resetKeepalive('broadcaster');
+
         switch (messageType) {
             case 'session_welcome':
                 this.broadcasterSessionId = message.payload.session.id;
                 this.broadcasterKeepaliveTimeoutSeconds = message.payload.session.keepalive_timeout_seconds || 10;
                 console.log(`✅ Broadcaster EventSub session established: ${this.broadcasterSessionId} (keepalive: ${this.broadcasterKeepaliveTimeoutSeconds}s)`);
-                this.resetKeepalive('broadcaster');
                 await this.subscribeToBroadcasterEvents();
                 break;
 
             case 'session_keepalive':
-                this.resetKeepalive('broadcaster');
+                // Already handled above
                 break;
 
             case 'notification':
