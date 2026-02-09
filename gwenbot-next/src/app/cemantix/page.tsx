@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import Loader from '@/components/ui/loader'
+import { useToast } from '@/components/toast-context'
 
 const styles = `
   .cemantix-card {
@@ -84,6 +85,7 @@ interface HistoryEntry {
 }
 
 export default function CemantixPage() {
+    const { showToast } = useToast()
     const [records, setRecords] = useState<Records | null>(null)
     const [activeTab, setActiveTab] = useState<'session' | 'global' | 'history'>('session')
     const [globalLeaderboard, setGlobalLeaderboard] = useState<LeaderboardEntry[]>([])
@@ -94,6 +96,7 @@ export default function CemantixPage() {
     const [loading, setLoading] = useState(true)
     const [isAdmin, setIsAdmin] = useState(false)
     const [currentUser, setCurrentUser] = useState<string | null>(null)
+    const [sessionLoading, setSessionLoading] = useState(false)
     const supabase = createClient()
 
     // Check if user is admin
@@ -207,6 +210,54 @@ export default function CemantixPage() {
         return record?.score ? record.score.toString() : '-'
     }
 
+    const handleStartSession = async (lang: 'fr' | 'en') => {
+        setSessionLoading(true)
+        try {
+            const res = await fetch('/api/cemantix/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'start', lang })
+            })
+            const data = await res.json()
+            if (data.success) {
+                showToast(`Session ${lang === 'fr' ? 'Cémantix 🇫🇷' : 'Cemantle 🇬🇧'} lancée !`, 'success')
+                loadLeaderboard()
+            } else {
+                showToast(data.error || 'Erreur lors du démarrage', 'error')
+            }
+        } catch (error) {
+            console.error('Start session error:', error)
+            showToast('Erreur de connexion au bot', 'error')
+        }
+        setSessionLoading(false)
+    }
+
+    const handleStopSession = async () => {
+        setSessionLoading(true)
+        try {
+            const res = await fetch('/api/cemantix/session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'stop' })
+            })
+            const data = await res.json()
+            if (data.success) {
+                let msg = 'Session terminée !'
+                if (data.winner) {
+                    msg += ` 🏆 ${data.winner} a gagné avec "${data.winningWord}"`
+                }
+                showToast(msg, 'info')
+                loadLeaderboard()
+            } else {
+                showToast(data.error || 'Erreur lors de l\'arrêt', 'error')
+            }
+        } catch (error) {
+            console.error('Stop session error:', error)
+            showToast('Erreur de connexion au bot', 'error')
+        }
+        setSessionLoading(false)
+    }
+
     return (
         <>
             <style>{styles}</style>
@@ -274,6 +325,83 @@ export default function CemantixPage() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Admin Controls */}
+                    {isAdmin && (
+                        <div style={{ padding: '0 1.5rem', marginBottom: '1rem' }}>
+                            <div className="cemantix-section" style={{ padding: '0.75rem' }}>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '12px', height: '12px' }}>
+                                        <circle cx="12" cy="12" r="3" />
+                                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                                    </svg>
+                                    Admin
+                                </div>
+                                {!sessionActive ? (
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <button
+                                            onClick={() => handleStartSession('fr')}
+                                            disabled={sessionLoading}
+                                            style={{
+                                                flex: 1,
+                                                padding: '0.5rem',
+                                                borderRadius: '10px',
+                                                border: 'none',
+                                                background: 'var(--pink-accent)',
+                                                color: 'white',
+                                                fontWeight: 600,
+                                                fontSize: '0.8rem',
+                                                cursor: sessionLoading ? 'not-allowed' : 'pointer',
+                                                opacity: sessionLoading ? 0.6 : 1,
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            {sessionLoading ? '...' : '🇫🇷 Start FR'}
+                                        </button>
+                                        <button
+                                            onClick={() => handleStartSession('en')}
+                                            disabled={sessionLoading}
+                                            style={{
+                                                flex: 1,
+                                                padding: '0.5rem',
+                                                borderRadius: '10px',
+                                                border: 'none',
+                                                background: 'var(--pink-accent)',
+                                                color: 'white',
+                                                fontWeight: 600,
+                                                fontSize: '0.8rem',
+                                                cursor: sessionLoading ? 'not-allowed' : 'pointer',
+                                                opacity: sessionLoading ? 0.6 : 1,
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            {sessionLoading ? '...' : '🇬🇧 Start EN'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={handleStopSession}
+                                        disabled={sessionLoading}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.5rem',
+                                            borderRadius: '10px',
+                                            border: '1px solid #ef4444',
+                                            background: 'rgba(239, 68, 68, 0.15)',
+                                            color: '#ef4444',
+                                            fontWeight: 600,
+                                            fontSize: '0.8rem',
+                                            cursor: sessionLoading ? 'not-allowed' : 'pointer',
+                                            opacity: sessionLoading ? 0.6 : 1,
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        {sessionLoading ? '...' : '⏹️ Stop Session'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Toggle Tabs */}
                     <div style={{ padding: '0 1.5rem', marginBottom: '1rem' }}>

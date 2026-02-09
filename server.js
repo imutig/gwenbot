@@ -632,6 +632,66 @@ app.post('/api/announce', async (req, res) => {
     }
 });
 
+// === Cemantix Session Control (for Next.js admin panel) ===
+app.post('/api/cemantix/session/start', async (req, res) => {
+    try {
+        const botSecret = req.headers['x-bot-secret'];
+        if (botSecret !== process.env.BOT_SECRET) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { lang } = req.body;
+        const result = await startSession(lang || 'fr');
+
+        if (result.success) {
+            // Send Twitch announcement
+            const { getTwitchClient } = require('./index');
+            const client = getTwitchClient();
+            if (client) {
+                await client.sendAnnouncement(
+                    `🎮 Session ${result.gameName} lancée ! Écrivez un mot seul dans le chat pour le tester. Bonne chance à tous !`,
+                    'purple'
+                );
+            }
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error('Cemantix start error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.post('/api/cemantix/session/stop', async (req, res) => {
+    try {
+        const botSecret = req.headers['x-bot-secret'];
+        if (botSecret !== process.env.BOT_SECRET) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const result = await stopSession();
+
+        if (result.success) {
+            // Send Twitch announcement
+            const { getTwitchClient } = require('./index');
+            const client = getTwitchClient();
+            if (client) {
+                let msg = `🏁 Session ${result.gameName} terminée !`;
+                if (result.winner) {
+                    msg += ` 🏆 Gagnant: ${result.winner} avec "${result.winningWord}"`;
+                }
+                msg += ` (${result.guessCount} essais)`;
+                await client.sendAnnouncement(msg, 'purple');
+            }
+        }
+
+        res.json(result);
+    } catch (error) {
+        console.error('Cemantix stop error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

@@ -1338,7 +1338,6 @@ async function start() {
 
     // Initialize Discord client (for Spotify presence)
     await initDiscordClient();
-    startDebugPolling(); // DEBUG: Log Spotify every 5s
 
     // Start web server (passing twitchClient for bot auth routes)
     startServer(twitchClient);
