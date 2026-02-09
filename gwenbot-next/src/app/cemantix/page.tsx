@@ -101,28 +101,26 @@ export default function CemantixPage() {
 
     // Check if user is admin
     useEffect(() => {
-        if (!supabase) return
-
         const checkAdmin = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-                const username = (
-                    user.user_metadata?.user_name ||
-                    user.user_metadata?.preferred_username ||
-                    user.user_metadata?.name ||
-                    user.email?.split('@')[0]
-                )?.toLowerCase()
+            try {
+                const res = await fetch('/api/auth/session')
+                const data = await res.json()
 
-                if (username) {
-                    setCurrentUser(username)
-                    const res = await fetch(`/api/auth/check-admin?username=${username}`)
-                    const data = await res.json()
-                    setIsAdmin(data.isAdmin)
+                if (data.user) {
+                    const username = data.user.display_name || data.user.user_name
+                    if (username) {
+                        setCurrentUser(username.toLowerCase())
+                        const authRes = await fetch(`/api/auth/check-admin?username=${username}`)
+                        const authData = await authRes.json()
+                        setIsAdmin(authData.isAdmin || false)
+                    }
                 }
+            } catch (error) {
+                console.error('Error checking auth:', error)
             }
         }
         checkAdmin()
-    }, [supabase])
+    }, [])
 
     // Load records
     useEffect(() => {
