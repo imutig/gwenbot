@@ -116,6 +116,30 @@ function checkBingo(checked) {
     return false;
 }
 
+/**
+ * Get all winning bingo lines (cell indices of complete rows/cols/diags)
+ */
+function getBingoLines(checked) {
+    const lines = [];
+    // Rows
+    for (let r = 0; r < 5; r++) {
+        const start = r * 5;
+        const row = [start, start + 1, start + 2, start + 3, start + 4];
+        if (row.every(i => checked[i])) lines.push(row);
+    }
+    // Columns
+    for (let c = 0; c < 5; c++) {
+        const col = [c, c + 5, c + 10, c + 15, c + 20];
+        if (col.every(i => checked[i])) lines.push(col);
+    }
+    // Diagonals
+    const d1 = [0, 6, 12, 18, 24];
+    const d2 = [4, 8, 12, 16, 20];
+    if (d1.every(i => checked[i])) lines.push(d1);
+    if (d2.every(i => checked[i])) lines.push(d2);
+    return lines;
+}
+
 // ==================== SESSION ROUTES (Broadcaster) ====================
 
 /**
@@ -136,11 +160,13 @@ router.post('/session/start', requireBroadcaster, async (req, res) => {
             .update({ status: 'ended' })
             .eq('status', 'active');
 
-        // Create new session
+        // Create new session with validated_items tracking
+        const validated_items = Array(items.length).fill(false);
         const { data, error } = await supabase
             .from('bingo_sessions')
             .insert({
                 items: items,
+                validated_items: validated_items,
                 status: 'active',
                 created_by: req.twitchUser.userId || 'broadcaster'
             })
@@ -208,6 +234,43 @@ router.post('/session/items', requireBroadcaster, async (req, res) => {
     }
 });
 
+/**
+ * POST /bingo/session/validate
+ * Broadcaster toggles an item as validated (it happened on stream)
+ */
+router.post('/session/validate', requireBroadcaster, async (req, res) => {
+    try {
+        const { itemIndex } = req.body;
+
+        const { data: session, error: sessionError } = await supabase
+            .from('bingo_sessions')
+            .select('id, items, validated_items')
+            .eq('status', 'active')
+            .single();
+
+        if (sessionError) return res.status(404).json({ error: 'No active session' });
+        if (itemIndex === undefined || itemIndex < 0 || itemIndex >= session.items.length) {
+            return res.status(400).json({ error: 'Invalid item index' });
+        }
+
+        const validated = [...(session.validated_items || Array(session.items.length).fill(false))];
+        validated[itemIndex] = !validated[itemIndex];
+
+        await supabase
+            .from('bingo_sessions')
+            .update({ validated_items: validated })
+            .eq('id', session.id);
+
+        const itemName = session.items[itemIndex];
+        console.log(`🎯 Item ${validated[itemIndex] ? 'validated' : 'unvalidated'}: "${itemName}"`);
+
+        res.json({ success: true, validated_items: validated });
+    } catch (error) {
+        console.error('❌ Error validating item:', error);
+        res.status(500).json({ error: 'Failed to validate item' });
+    }
+});
+
 // ==================== VIEWER ROUTES ====================
 
 /**
@@ -218,7 +281,7 @@ router.get('/session', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('bingo_sessions')
-            .select('id, items, status, winners, created_at')
+            .select('id, items, validated_items, status, winners, created_at')
             .eq('status', 'active')
             .order('created_at', { ascending: false })
             .limit(1)
@@ -234,8 +297,8 @@ router.get('/session', async (req, res) => {
             sessionId: data.id,
             itemCount: data.items.length,
             winners: data.winners,
+            validated_items: data.validated_items,
             createdAt: data.created_at,
-            // Only send items to broadcaster
             items: req.twitchUser.role === 'broadcaster' ? data.items : undefined
         });
     } catch (error) {
@@ -290,7 +353,7 @@ router.get('/card', async (req, res) => {
             .insert({
                 session_id: session.id,
                 twitch_user_id: userId,
-                twitch_username: req.twitchUser.userId ? null : 'anonymous',
+                twitch_username: req.query.display_name || 'Viewer',
                 grid: grid,
                 checked: checked
             })
@@ -384,12 +447,36 @@ router.post('/claim', async (req, res) => {
 
         // Server-side bingo verification
         if (!checkBingo(card.checked)) {
-            return res.status(400).json({ error: 'No bingo detected — nice try! 😏' });
+            return res.status(400).json({ error: 'Pas de bingo détecté — bien essayé ! 😏' });
         }
 
         // Check if already claimed
         if (card.has_bingo) {
-            return res.status(400).json({ error: 'Bingo already claimed' });
+            return res.status(400).json({ error: 'Bingo déjà réclamé !' });
+        }
+
+        // Verify that the winning line contains only broadcaster-validated items
+        const session = card.bingo_sessions;
+        const validatedItems = session.validated_items || [];
+        const winningLines = getBingoLines(card.checked);
+
+        // Check if at least one winning line has ALL items validated
+        let validLine = false;
+        for (const line of winningLines) {
+            const lineItemsValidated = line.every(cellIndex => {
+                if (cellIndex === 12) return true; // Free space always valid
+                const itemText = card.grid[cellIndex]?.text;
+                // Find this item in the session items and check if validated
+                const sessionItemIndex = session.items.indexOf(itemText);
+                return sessionItemIndex !== -1 && validatedItems[sessionItemIndex];
+            });
+            if (lineItemsValidated) { validLine = true; break; }
+        }
+
+        if (!validLine) {
+            return res.status(400).json({
+                error: 'Les items de ta ligne ne sont pas encore tous validés par la streameuse ! Patience 😊'
+            });
         }
 
         // Mark card as bingo
