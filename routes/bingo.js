@@ -13,6 +13,53 @@ const router = express.Router();
 const EXTENSION_SECRET = Buffer.from(process.env.TWITCH_EXTENSION_SECRET || '', 'base64');
 const BROADCASTER_ID = process.env.TWITCH_BROADCASTER_ID;
 
+// Cache for app access token (Helix API)
+let appAccessToken = null;
+let tokenExpiresAt = 0;
+
+/**
+ * Get a Twitch app access token for Helix API calls
+ */
+async function getAppAccessToken() {
+    if (appAccessToken && Date.now() < tokenExpiresAt) return appAccessToken;
+    try {
+        const res = await fetch('https://id.twitch.tv/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `client_id=${process.env.TWITCH_EXTENSION_CLIENT_ID}&client_secret=${process.env.TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
+        });
+        const data = await res.json();
+        appAccessToken = data.access_token;
+        tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
+        return appAccessToken;
+    } catch (e) {
+        console.error('Failed to get app access token:', e);
+        return null;
+    }
+}
+
+/**
+ * Resolve a Twitch user ID to a display name via Helix API
+ */
+async function getTwitchDisplayName(userId) {
+    if (!userId) return null;
+    try {
+        const token = await getAppAccessToken();
+        if (!token) return null;
+        const res = await fetch(`https://api.twitch.tv/helix/users?id=${userId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Client-Id': process.env.TWITCH_EXTENSION_CLIENT_ID
+            }
+        });
+        const data = await res.json();
+        return data.data?.[0]?.display_name || null;
+    } catch (e) {
+        console.error('Failed to resolve Twitch username:', e);
+        return null;
+    }
+}
+
 // ==================== JWT MIDDLEWARE ====================
 
 /**
@@ -348,12 +395,15 @@ router.get('/card', async (req, res) => {
         const checked = Array(25).fill(false);
         checked[12] = true; // Free space is always checked
 
+        // Resolve username from Twitch API
+        const twitchDisplayName = await getTwitchDisplayName(req.twitchUser.userId);
+
         const { data: newCard, error: insertError } = await supabase
             .from('bingo_cards')
             .insert({
                 session_id: session.id,
                 twitch_user_id: userId,
-                twitch_username: req.query.display_name || 'Viewer',
+                twitch_username: twitchDisplayName || 'Viewer',
                 grid: grid,
                 checked: checked
             })
