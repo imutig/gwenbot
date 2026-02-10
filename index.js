@@ -1333,14 +1333,14 @@ async function start() {
         console.error('Failed to load embeddings:', err);
     });
 
-    // Initialize Twitch client
+    // Start web server FIRST so Railway sees the port open immediately
+    startServer(twitchClient);
+
+    // Initialize Twitch client (may take time)
     await initializeTwitchClient();
 
     // Initialize Discord client (for Spotify presence)
     await initDiscordClient();
-
-    // Start web server (passing twitchClient for bot auth routes)
-    startServer(twitchClient);
 
     // Start stream monitoring
     startStreamMonitoring();
