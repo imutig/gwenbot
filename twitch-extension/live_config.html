@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GwenBingo — Config Live</title>
+    <link rel="stylesheet" href="css/bingo.css">
+    <style>
+        body {
+            padding: 12px;
+        }
+
+        .config-section {
+            background: var(--bg-card);
+            border-radius: var(--border-radius);
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .config-section h2 {
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+            color: var(--pink-main);
+        }
+
+        .items-textarea {
+            width: 100%;
+            min-height: 200px;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 8px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.75rem;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        .items-textarea:focus {
+            outline: none;
+            border-color: var(--pink-main);
+        }
+
+        .item-count {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .item-count.ok {
+            color: #4caf50;
+        }
+
+        .item-count.error {
+            color: var(--pink-main);
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .config-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .config-btn:hover {
+            transform: scale(1.02);
+        }
+
+        .config-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #4caf50, #66bb6a);
+            color: white;
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, var(--pink-main), #ff6b8a);
+            color: white;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #2196f3, #42a5f5);
+            color: white;
+        }
+
+        .session-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            margin-bottom: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .status-dot.active {
+            background: #4caf50;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.inactive {
+            background: #666;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .winners-section {
+            margin-top: 8px;
+            font-size: 0.7rem;
+        }
+
+        .preset-btn {
+            padding: 4px 8px;
+            background: var(--bg-cell);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.6rem;
+            cursor: pointer;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+
+        .preset-btn:hover {
+            background: var(--bg-cell-hover);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🎯 BINGO — Contrôles</h1>
+    </div>
+
+    <!-- Session Status -->
+    <div class="config-section">
+        <div class="session-status">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="session-status-text">Chargement...</span>
+        </div>
+
+        <div class="btn-row">
+            <button class="config-btn btn-start" id="btn-start" onclick="startSession()">
+                ▶ Lancer le Bingo
+            </button>
+            <button class="config-btn btn-stop" id="btn-stop" onclick="endSession()" style="display:none;">
+                ⏹ Arrêter
+            </button>
+        </div>
+
+        <div class="winners-section" id="winners-section" style="display:none;">
+            <strong style="color:var(--gold);">🏆 Gagnants :</strong>
+            <div id="live-winners"></div>
+        </div>
+    </div>
+
+    <!-- Items Editor -->
+    <div class="config-section">
+        <h2>📝 Items du Bingo</h2>
+        <p style="font-size:0.65rem; color:var(--text-muted); margin-bottom:6px;">
+            Un item par ligne. Minimum 24 items nécessaires.
+        </p>
+
+        <div style="margin-bottom:6px;">
+            <button class="preset-btn" onclick="loadPreset('gaming')">🎮 Preset Gaming</button>
+            <button class="preset-btn" onclick="loadPreset('irl')">💬 Preset IRL</button>
+        </div>
+
+        <textarea class="items-textarea" id="items-textarea"
+            placeholder="Rage quit&#10;Dit 'en vrai'&#10;Meurt au boss&#10;Fait un jump scare&#10;..."
+            oninput="updateItemCount()"></textarea>
+        <div class="item-count" id="item-count">0 / 24 items</div>
+
+        <div class="btn-row">
+            <button class="config-btn btn-save" id="btn-save" onclick="saveItems()">
+                💾 Sauvegarder
+            </button>
+        </div>
+    </div>
+
+    <div class="status-msg" id="config-status"></div>
+
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script src="js/live_config.js"></script>
+</body>
+
+</html>

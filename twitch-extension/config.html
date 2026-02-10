@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GwenBingo — Configuration</title>
+    <link rel="stylesheet" href="css/bingo.css">
+    <style>
+        body {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .config-info {
+            max-width: 400px;
+            margin: 20px auto;
+            background: var(--bg-card);
+            border-radius: var(--border-radius);
+            padding: 20px;
+        }
+
+        .config-info h2 {
+            font-size: 1rem;
+            color: var(--pink-main);
+            margin-bottom: 10px;
+        }
+
+        .config-info p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .step {
+            text-align: left;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .step:last-child {
+            border-bottom: none;
+        }
+
+        .step-num {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background: var(--pink-main);
+            border-radius: 50%;
+            text-align: center;
+            line-height: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            margin-right: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🎯 GwenBingo</h1>
+    </div>
+
+    <div class="config-info">
+        <h2>Configuration</h2>
+        <p>L'extension est prête ! Pour lancer un bingo :</p>
+
+        <div class="step">
+            <span class="step-num">1</span>
+            Ouvre le <strong>Live Dashboard</strong> pendant ton stream
+        </div>
+        <div class="step">
+            <span class="step-num">2</span>
+            Clique sur <strong>GwenBingo</strong> dans les contrôles d'extension
+        </div>
+        <div class="step">
+            <span class="step-num">3</span>
+            Ajoute tes items (ou choisis un preset) et clique <strong>Lancer le Bingo</strong>
+        </div>
+
+        <p style="margin-top: 12px; font-size: 0.7rem; color: var(--text-muted);">
+            Les viewers verront automatiquement leur grille unique dans le panel sous ta vidéo.
+        </p>
+    </div>
+
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script>
+        // Simple config page — just needs the helper loaded
+        window.Twitch.ext.onAuthorized(function (auth) {
+            console.log('🔐 Config page authorized');
+        });
+    </script>
+</body>
+
+</html>

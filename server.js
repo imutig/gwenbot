@@ -16,6 +16,7 @@ const adminRoutes = require('./routes/admin');
 const statsRoutes = require('./routes/stats');
 const twitchRoutes = require('./routes/twitch');
 const sudokuRoutes = require('./routes/sudoku');
+const { router: bingoRoutes } = require('./routes/bingo');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -407,6 +408,11 @@ app.use((req, res, next) => {
         return next();
     }
 
+    // Allow bingo extension routes
+    if (req.path.startsWith('/bingo')) {
+        return next();
+    }
+
     // Block everything else - show maintenance page
     res.status(503).send(MAINTENANCE_HTML);
 });
@@ -516,6 +522,9 @@ const twitchRouter = twitchRoutes.createRouter({
     TWITCH_CLIENT_SECRET
 });
 app.use('/api/twitch', twitchRouter);
+
+// Bingo extension routes: /bingo/*
+app.use('/bingo', bingoRoutes);
 
 // Polls page (admin only)
 app.get('/polls', (req, res) => {
