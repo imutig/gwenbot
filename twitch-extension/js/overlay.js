@@ -1,14 +1,10 @@
 /**
- * GwenBingo Extension — Panel (Viewer) Logic
- * Handles the bingo card display, cell toggling, and bingo claiming
+ * GwenBingo Extension — Video Overlay Logic
+ * Handles bingo card on stream with toggle button
  */
 
-// ==================== Configuration ====================
-
-// EBS URL — your Express server
 const EBS_URL = 'https://gwenbot-production.up.railway.app/bingo';
 
-// State
 let token = null;
 let cardData = null;
 let sessionActive = false;
@@ -19,10 +15,11 @@ let displayName = 'Viewer';
 
 window.Twitch.ext.onAuthorized(function (auth) {
     token = auth.token;
+    // Try to get viewer display name
     if (window.Twitch.ext.viewer) {
         displayName = window.Twitch.ext.viewer.displayName || displayName;
     }
-    console.log('🔐 Extension authorized, loading bingo card...');
+    console.log('🔐 Overlay authorized');
     loadCard();
 });
 
@@ -30,7 +27,7 @@ window.Twitch.ext.onError(function (err) {
     console.error('❌ Extension error:', err);
 });
 
-// Listen for PubSub broadcasts (bingo announcements)
+// PubSub
 window.Twitch.ext.listen('broadcast', function (target, contentType, message) {
     try {
         const data = JSON.parse(message);
@@ -42,7 +39,7 @@ window.Twitch.ext.listen('broadcast', function (target, contentType, message) {
     }
 });
 
-// ==================== API Calls ====================
+// ==================== API ====================
 
 async function apiCall(method, endpoint, body = null) {
     const options = {
@@ -62,7 +59,6 @@ async function apiCall(method, endpoint, body = null) {
 
 async function loadCard() {
     try {
-        // Reset state for new session
         hasBingo = false;
         cardData = null;
 
@@ -78,7 +74,9 @@ async function loadCard() {
         renderGrid();
         showBingoView();
 
-        // Also check for existing winners
+        // Show toggle button
+        document.getElementById('bingo-toggle').classList.remove('hidden');
+
         const sessionData = await apiCall('GET', '/session');
         if (sessionData.winners && sessionData.winners.length > 0) {
             renderWinners(sessionData.winners);
@@ -89,7 +87,7 @@ async function loadCard() {
     }
 }
 
-// ==================== Render Grid ====================
+// ==================== Grid ====================
 
 function renderGrid() {
     const grid = document.getElementById('bingo-grid');
@@ -114,7 +112,6 @@ function renderGrid() {
         grid.appendChild(cellEl);
     });
 
-    // Check if already has bingo
     if (cardData.has_bingo) {
         hasBingo = true;
         setStatus('Tu as déjà fait BINGO ! 🎉', 'winner');
@@ -129,93 +126,62 @@ function renderGrid() {
 async function toggleCell(index) {
     if (hasBingo || !sessionActive) return;
 
-    // Optimistic UI update
     const cell = document.querySelector(`[data-index="${index}"]`);
     const wasChecked = cardData.checked[index];
     cardData.checked[index] = !wasChecked;
 
-    if (cardData.checked[index]) {
-        cell.classList.add('checked');
-    } else {
-        cell.classList.remove('checked');
-    }
+    cell.classList.toggle('checked');
 
-    // Check for bingo locally
     if (checkLocalBingo()) {
         showBingoButton();
     } else {
         hideBingoButton();
     }
 
-    // Send to server
     try {
         const result = await apiCall('POST', '/check', { cellIndex: index });
-        // Sync with server state
         if (result.checked) cardData.checked = result.checked;
-
-        if (result.hasBingo && !hasBingo) {
-            showBingoButton();
-        }
+        if (result.hasBingo && !hasBingo) showBingoButton();
     } catch (error) {
         console.error('❌ Error toggling cell:', error);
-        // Revert on error
         cardData.checked[index] = wasChecked;
         cell.classList.toggle('checked');
     }
 }
 
-// ==================== Bingo Detection (local) ====================
+// ==================== Bingo Detection ====================
 
 function checkLocalBingo() {
     const c = cardData.checked;
-
-    // Rows
     for (let r = 0; r < 5; r++) {
         const s = r * 5;
         if (c[s] && c[s + 1] && c[s + 2] && c[s + 3] && c[s + 4]) return true;
     }
-    // Columns
     for (let col = 0; col < 5; col++) {
         if (c[col] && c[col + 5] && c[col + 10] && c[col + 15] && c[col + 20]) return true;
     }
-    // Diagonals
     if (c[0] && c[6] && c[12] && c[18] && c[24]) return true;
     if (c[4] && c[8] && c[12] && c[16] && c[20]) return true;
-
     return false;
 }
 
 function getBingoLines() {
     const c = cardData.checked;
     const lines = [];
-
-    // Rows
     for (let r = 0; r < 5; r++) {
         const s = r * 5;
-        if (c[s] && c[s + 1] && c[s + 2] && c[s + 3] && c[s + 4]) {
-            lines.push([s, s + 1, s + 2, s + 3, s + 4]);
-        }
+        if (c[s] && c[s + 1] && c[s + 2] && c[s + 3] && c[s + 4]) lines.push([s, s + 1, s + 2, s + 3, s + 4]);
     }
-    // Columns
     for (let col = 0; col < 5; col++) {
-        if (c[col] && c[col + 5] && c[col + 10] && c[col + 15] && c[col + 20]) {
-            lines.push([col, col + 5, col + 10, col + 15, col + 20]);
-        }
+        if (c[col] && c[col + 5] && c[col + 10] && c[col + 15] && c[col + 20]) lines.push([col, col + 5, col + 10, col + 15, col + 20]);
     }
-    // Diagonals
-    if (c[0] && c[6] && c[12] && c[18] && c[24]) {
-        lines.push([0, 6, 12, 18, 24]);
-    }
-    if (c[4] && c[8] && c[12] && c[16] && c[20]) {
-        lines.push([4, 8, 12, 16, 20]);
-    }
-
+    if (c[0] && c[6] && c[12] && c[18] && c[24]) lines.push([0, 6, 12, 18, 24]);
+    if (c[4] && c[8] && c[12] && c[16] && c[20]) lines.push([4, 8, 12, 16, 20]);
     return lines;
 }
 
 function highlightBingoLine() {
-    const lines = getBingoLines();
-    lines.forEach(line => {
+    getBingoLines().forEach(line => {
         line.forEach(idx => {
             const cell = document.querySelector(`[data-index="${idx}"]`);
             if (cell) cell.classList.add('bingo-line');
@@ -223,7 +189,7 @@ function highlightBingoLine() {
     });
 }
 
-// ==================== Claim Bingo ====================
+// ==================== Claim ====================
 
 async function claimBingo() {
     const btn = document.getElementById('bingo-btn');
@@ -232,7 +198,6 @@ async function claimBingo() {
 
     try {
         const result = await apiCall('POST', '/claim');
-
         if (result.success) {
             hasBingo = true;
             setStatus(result.message, 'winner');
@@ -245,28 +210,21 @@ async function claimBingo() {
             btn.textContent = '🎉 BINGO !';
         }
     } catch (error) {
-        console.error('❌ Error claiming bingo:', error);
         setStatus('Erreur de connexion', 'error');
         btn.disabled = false;
         btn.textContent = '🎉 BINGO !';
     }
 }
 
-// Bind bingo button via addEventListener (Twitch CSP blocks inline onclick)
-document.addEventListener('DOMContentLoaded', function () {
-    document.getElementById('bingo-btn').addEventListener('click', claimBingo);
-});
-
-// ==================== UI Helpers ====================
+// ==================== UI ====================
 
 function showBingoView() {
-    document.getElementById('loading').style.display = 'none';
     document.getElementById('no-session').style.display = 'none';
     document.getElementById('bingo-view').style.display = 'block';
 }
 
 function showNoSession() {
-    document.getElementById('loading').style.display = 'none';
+    document.getElementById('bingo-toggle').classList.remove('hidden');
     document.getElementById('no-session').style.display = 'flex';
     document.getElementById('bingo-view').style.display = 'none';
 }
@@ -286,34 +244,24 @@ function setStatus(msg, type = '') {
 }
 
 function showWinner(data) {
-    // Add winner to the list
     const container = document.getElementById('winners-container');
     const entry = document.createElement('div');
     entry.className = 'winner-entry';
-    entry.innerHTML = `
-        <span class="position">#${data.position}</span>
-        <span>${data.username}</span>
-    `;
+    entry.innerHTML = `<span class="position">#${data.position}</span><span>${data.username}</span>`;
     container.appendChild(entry);
     document.getElementById('winners-list').style.display = 'block';
 }
 
 function renderWinners(winners) {
     if (!winners || winners.length === 0) return;
-
     const container = document.getElementById('winners-container');
     container.innerHTML = '';
-
     winners.forEach(w => {
         const entry = document.createElement('div');
         entry.className = 'winner-entry';
-        entry.innerHTML = `
-            <span class="position">#${w.position}</span>
-            <span>${w.username}</span>
-        `;
+        entry.innerHTML = `<span class="position">#${w.position}</span><span>${w.username}</span>`;
         container.appendChild(entry);
     });
-
     document.getElementById('winners-list').style.display = 'block';
 }
 
@@ -322,45 +270,53 @@ function renderWinners(winners) {
 function launchConfetti() {
     const container = document.getElementById('confetti-container');
     const colors = ['#e94560', '#ffd700', '#ff6b8a', '#533483', '#00d2ff', '#fff'];
-
     for (let i = 0; i < 50; i++) {
-        const confetti = document.createElement('div');
-        confetti.className = 'confetti';
-        confetti.style.left = Math.random() * 100 + '%';
-        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        confetti.style.animationDelay = Math.random() * 2 + 's';
-        confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
-        confetti.style.width = (4 + Math.random() * 6) + 'px';
-        confetti.style.height = confetti.style.width;
-        confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
-        container.appendChild(confetti);
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.left = Math.random() * 100 + '%';
+        c.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        c.style.animationDelay = Math.random() * 2 + 's';
+        c.style.animationDuration = (2 + Math.random() * 2) + 's';
+        c.style.width = (4 + Math.random() * 6) + 'px';
+        c.style.height = c.style.width;
+        c.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        container.appendChild(c);
     }
-
-    // Cleanup after animation
-    setTimeout(() => {
-        container.innerHTML = '';
-    }, 5000);
+    setTimeout(() => { container.innerHTML = ''; }, 5000);
 }
+
+// ==================== Toggle & Events ====================
+
+document.addEventListener('DOMContentLoaded', function () {
+    const toggle = document.getElementById('bingo-toggle');
+    const overlay = document.getElementById('bingo-overlay');
+    const closeBtn = document.getElementById('overlay-close');
+    const bingoBtn = document.getElementById('bingo-btn');
+
+    toggle.addEventListener('click', function () {
+        overlay.classList.toggle('visible');
+    });
+
+    closeBtn.addEventListener('click', function () {
+        overlay.classList.remove('visible');
+    });
+
+    bingoBtn.addEventListener('click', claimBingo);
+});
 
 // ==================== Polling ====================
 
-// Poll for session changes every 30 seconds
 setInterval(async () => {
     if (!token) return;
-
     try {
         const data = await apiCall('GET', '/session');
         if (data.active && !sessionActive) {
-            // Session just started — reload card
             loadCard();
         } else if (!data.active && sessionActive) {
-            // Session ended
             sessionActive = false;
             showNoSession();
         } else if (data.active && data.winners && data.winners.length > 0) {
             renderWinners(data.winners);
         }
-    } catch (e) {
-        // Silent fail for polling
-    }
+    } catch (e) { /* silent */ }
 }, 30000);

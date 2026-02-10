@@ -436,7 +436,7 @@ router.post('/claim', async (req, res) => {
         // Get the card with session
         const { data: card, error: cardError } = await supabase
             .from('bingo_cards')
-            .select('*, bingo_sessions!inner(id, status, winners)')
+            .select('*, bingo_sessions!inner(id, status, winners, items, validated_items)')
             .eq('twitch_user_id', userId)
             .eq('bingo_sessions.status', 'active')
             .single();

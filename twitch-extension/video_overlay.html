@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GwenBingo Overlay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            background: transparent !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #f5e6ea;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        /* Toggle button */
+        .bingo-toggle {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            width: 44px;
+            height: 44px;
+            background: rgba(45, 35, 50, 0.8);
+            border: 1px solid rgba(240, 119, 170, 0.3);
+            border-radius: 50%;
+            color: #f5e6ea;
+            font-size: 0.95rem;
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+        }
+
+        .bingo-toggle:hover {
+            background: rgba(55, 45, 60, 0.95);
+            border-color: rgba(240, 119, 170, 0.5);
+        }
+
+        .bingo-toggle.hidden {
+            display: none;
+        }
+
+        /* Overlay card */
+        .bingo-overlay {
+            position: fixed;
+            top: 60px;
+            left: 10px;
+            width: 420px;
+            background: rgba(26, 21, 32, 0.88);
+            border-radius: 16px;
+            border: 1px solid rgba(240, 119, 170, 0.2);
+            backdrop-filter: blur(12px);
+            z-index: 999;
+            display: none;
+            pointer-events: auto;
+            overflow: hidden;
+        }
+
+        .bingo-overlay.visible {
+            display: block;
+        }
+
+        .overlay-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(240, 119, 170, 0.12);
+        }
+
+        .overlay-header h2 {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #f077aa;
+        }
+
+        .overlay-close {
+            background: none;
+            border: none;
+            color: #b89aa6;
+            font-size: 0.85rem;
+            cursor: pointer;
+            padding: 0 2px;
+        }
+
+        .overlay-close:hover {
+            color: #f5e6ea;
+        }
+
+        /* Grid */
+        .bingo-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 2px;
+            padding: 6px;
+        }
+
+        .bingo-cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: rgba(35, 28, 40, 0.9);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-size: 0.58rem;
+            font-weight: 500;
+            padding: 2px;
+            line-height: 1.1;
+            word-break: break-word;
+            position: relative;
+            user-select: none;
+            border: 1px solid rgba(240, 119, 170, 0.08);
+            color: #f5e6ea;
+        }
+
+        .bingo-cell:hover:not(.free):not(.checked) {
+            background: rgba(55, 45, 60, 0.9);
+            border-color: rgba(240, 119, 170, 0.2);
+        }
+
+        .bingo-cell.checked {
+            background: rgba(240, 119, 170, 0.55);
+            border-color: rgba(240, 119, 170, 0.3);
+        }
+
+        .bingo-cell.checked::after {
+            content: '✓';
+            position: absolute;
+            top: 1px;
+            right: 2px;
+            font-size: 0.35rem;
+            opacity: 0.6;
+        }
+
+        .bingo-cell.free {
+            background: rgba(138, 101, 120, 0.4);
+            font-size: 0.85rem;
+            cursor: default;
+        }
+
+        .bingo-cell.bingo-line {
+            border-color: #ffd700;
+            box-shadow: 0 0 6px rgba(255, 215, 0, 0.25);
+        }
+
+        /* Bingo button */
+        .bingo-actions {
+            text-align: center;
+            padding: 4px 6px 6px;
+        }
+
+        .bingo-btn {
+            display: none;
+            margin: 0 auto;
+            padding: 6px 20px;
+            background: #f077aa;
+            color: #1a1520;
+            border: none;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .bingo-btn.visible {
+            display: inline-block;
+        }
+
+        .bingo-btn:hover {
+            background: #d94e8a;
+        }
+
+        /* Status */
+        .status-msg {
+            text-align: center;
+            padding: 3px 6px;
+            font-size: 0.55rem;
+            color: #b89aa6;
+        }
+
+        .status-msg.winner {
+            color: #ffd700;
+            font-weight: 600;
+        }
+
+        .status-msg.error {
+            color: #f077aa;
+        }
+
+        /* Winners */
+        .winners-list {
+            padding: 2px 6px 6px;
+            font-size: 0.5rem;
+        }
+
+        .winners-list h3 {
+            font-size: 0.55rem;
+            color: #ffd700;
+            text-align: center;
+            margin-bottom: 2px;
+        }
+
+        .winner-entry {
+            display: flex;
+            gap: 4px;
+            padding: 1px 4px;
+            background: rgba(255, 215, 0, 0.08);
+            border-radius: 4px;
+            margin-bottom: 1px;
+        }
+
+        .winner-entry .position {
+            font-weight: 600;
+            color: #ffd700;
+        }
+
+        /* No session */
+        .no-session {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            color: #b89aa6;
+            text-align: center;
+        }
+
+        .no-session .icon {
+            font-size: 1.3rem;
+            margin-bottom: 4px;
+        }
+
+        .no-session p {
+            font-size: 0.6rem;
+        }
+
+        /* Confetti */
+        .confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            overflow: hidden;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            top: -10px;
+            animation: confettiFall 3s ease-in forwards;
+        }
+
+        @keyframes confettiFall {
+            0% {
+                transform: translateY(0) rotate(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <button class="bingo-toggle hidden" id="bingo-toggle">🎯</button>
+
+    <div class="bingo-overlay" id="bingo-overlay">
+        <div class="overlay-header">
+            <h2>🎯 Bingo</h2>
+            <button class="overlay-close" id="overlay-close">✕</button>
+        </div>
+        <div class="no-session" id="no-session">
+            <div class="icon">🎯</div>
+            <p>Pas de bingo en cours</p>
+        </div>
+        <div id="bingo-view" style="display:none;">
+            <div class="bingo-grid" id="bingo-grid"></div>
+            <div class="bingo-actions">
+                <button class="bingo-btn" id="bingo-btn">🎉 BINGO !</button>
+            </div>
+            <div class="status-msg" id="status-msg"></div>
+            <div class="winners-list" id="winners-list" style="display:none;">
+                <h3>🏆 Gagnants</h3>
+                <div id="winners-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="confetti-container" id="confetti-container"></div>
+
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script src="js/overlay.js"></script>
+</body>
+
+</html>
