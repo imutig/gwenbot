@@ -328,7 +328,6 @@ router.post('/check', async (req, res) => {
             .from('bingo_cards')
             .select('*')
             .eq('twitch_user_id', userId)
-            .eq('has_bingo', false)
             .order('created_at', { ascending: false })
             .limit(1)
             .single();
@@ -341,11 +340,13 @@ router.post('/check', async (req, res) => {
         const checked = [...card.checked];
         checked[cellIndex] = !checked[cellIndex];
 
+        // Only detect bingo, do NOT persist has_bingo here
+        // The /claim route is the only one allowed to set has_bingo = true
         const hasBingo = checkBingo(checked);
 
         const { error: updateError } = await supabase
             .from('bingo_cards')
-            .update({ checked, has_bingo: hasBingo })
+            .update({ checked })
             .eq('id', card.id);
 
         if (updateError) throw updateError;
