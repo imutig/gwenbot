@@ -19,21 +19,32 @@ let tokenExpiresAt = 0;
 
 /**
  * Get a Twitch app access token for Helix API calls
+ * Uses the bot's client credentials (TWITCH_CLIENT_ID + TWITCH_CLIENT_SECRET)
  */
 async function getAppAccessToken() {
     if (appAccessToken && Date.now() < tokenExpiresAt) return appAccessToken;
     try {
+        const clientId = process.env.TWITCH_CLIENT_ID;
+        const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+        if (!clientId || !clientSecret) {
+            console.error('❌ Missing TWITCH_CLIENT_ID or TWITCH_CLIENT_SECRET for Helix API');
+            return null;
+        }
         const res = await fetch('https://id.twitch.tv/oauth2/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `client_id=${process.env.TWITCH_EXTENSION_CLIENT_ID}&client_secret=${process.env.TWITCH_CLIENT_SECRET}&grant_type=client_credentials`
+            body: `client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`
         });
         const data = await res.json();
+        if (!data.access_token) {
+            console.error('❌ Failed to get app token:', data);
+            return null;
+        }
         appAccessToken = data.access_token;
         tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
         return appAccessToken;
     } catch (e) {
-        console.error('Failed to get app access token:', e);
+        console.error('❌ Failed to get app access token:', e);
         return null;
     }
 }
@@ -42,20 +53,26 @@ async function getAppAccessToken() {
  * Resolve a Twitch user ID to a display name via Helix API
  */
 async function getTwitchDisplayName(userId) {
-    if (!userId) return null;
+    if (!userId) {
+        console.log('⚠️ No userId available for username resolution (viewer may not have shared identity)');
+        return null;
+    }
     try {
         const token = await getAppAccessToken();
         if (!token) return null;
+        const clientId = process.env.TWITCH_CLIENT_ID;
         const res = await fetch(`https://api.twitch.tv/helix/users?id=${userId}`, {
             headers: {
                 'Authorization': `Bearer ${token}`,
-                'Client-Id': process.env.TWITCH_EXTENSION_CLIENT_ID
+                'Client-Id': clientId
             }
         });
         const data = await res.json();
-        return data.data?.[0]?.display_name || null;
+        const displayName = data.data?.[0]?.display_name || null;
+        console.log(`🎯 Resolved user ${userId} → ${displayName || 'unknown'}`);
+        return displayName;
     } catch (e) {
-        console.error('Failed to resolve Twitch username:', e);
+        console.error('❌ Failed to resolve Twitch username:', e);
         return null;
     }
 }
