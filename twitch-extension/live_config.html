@@ -9,30 +9,31 @@
     <style>
         body {
             padding: 12px;
-            background-color: #1a1a2e !important;
-            color: #eee !important;
+            background-color: #1a1520 !important;
+            color: #f5e6ea !important;
         }
 
         .config-section {
-            background: #16213e;
-            border-radius: 8px;
+            background: rgba(45, 35, 50, 0.75);
+            border-radius: 12px;
             padding: 12px;
             margin-bottom: 10px;
+            border: 1px solid rgba(240, 119, 170, 0.1);
         }
 
         .config-section h2 {
             font-size: 0.85rem;
             margin-bottom: 8px;
-            color: #e94560;
+            color: #f077aa;
         }
 
         .items-textarea {
             width: 100%;
             min-height: 200px;
-            background: #1a1a2e;
-            color: #eee;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
+            background: rgba(35, 28, 40, 0.8);
+            color: #f5e6ea;
+            border: 1px solid rgba(240, 119, 170, 0.15);
+            border-radius: 8px;
             padding: 8px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 0.75rem;
@@ -42,21 +43,22 @@
 
         .items-textarea:focus {
             outline: none;
-            border-color: #e94560;
+            border-color: #f077aa;
+            box-shadow: 0 0 0 2px rgba(240, 119, 170, 0.15);
         }
 
         .item-count {
             font-size: 0.65rem;
-            color: #a0a0b8;
+            color: #b89aa6;
             margin-top: 4px;
         }
 
         .item-count.ok {
-            color: #4caf50;
+            color: #6ec77a;
         }
 
         .item-count.error {
-            color: #e94560;
+            color: #f077aa;
         }
 
         .btn-row {
@@ -69,16 +71,12 @@
             flex: 1;
             padding: 8px 12px;
             border: none;
-            border-radius: 8px;
+            border-radius: 50px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 0.75rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
-        }
-
-        .config-btn:hover {
-            transform: scale(1.02);
         }
 
         .config-btn:disabled {
@@ -87,18 +85,31 @@
         }
 
         .btn-start {
-            background: linear-gradient(135deg, #4caf50, #66bb6a);
-            color: white !important;
+            background: #6ec77a;
+            color: #1a1520;
+        }
+
+        .btn-start:hover {
+            background: #5ab567;
         }
 
         .btn-stop {
-            background: linear-gradient(135deg, #e94560, #ff6b8a);
-            color: white !important;
+            background: #f077aa;
+            color: #1a1520;
+        }
+
+        .btn-stop:hover {
+            background: #d94e8a;
         }
 
         .btn-save {
-            background: linear-gradient(135deg, #2196f3, #42a5f5);
-            color: white;
+            background: rgba(240, 119, 170, 0.15);
+            color: #f077aa;
+            border: 1px solid rgba(240, 119, 170, 0.25);
+        }
+
+        .btn-save:hover {
+            background: rgba(240, 119, 170, 0.25);
         }
 
         .session-status {
@@ -113,16 +124,16 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #666;
+            background: #5a4a5e;
         }
 
         .status-dot.active {
-            background: #4caf50;
+            background: #6ec77a;
             animation: pulse 2s infinite;
         }
 
         .status-dot.inactive {
-            background: #666;
+            background: #5a4a5e;
         }
 
         @keyframes pulse {
@@ -143,20 +154,33 @@
         }
 
         .preset-btn {
-            padding: 4px 8px;
-            background: #0f3460;
-            color: #eee;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
+            padding: 4px 10px;
+            background: rgba(138, 101, 120, 0.25);
+            color: #f5e6ea;
+            border: 1px solid rgba(240, 119, 170, 0.15);
+            border-radius: 50px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 0.6rem;
             cursor: pointer;
             margin-right: 4px;
             margin-bottom: 4px;
+            transition: all 0.2s ease;
         }
 
         .preset-btn:hover {
-            background: #1a4a7a;
+            background: rgba(138, 101, 120, 0.4);
+            border-color: rgba(240, 119, 170, 0.3);
+        }
+
+        .status-msg {
+            text-align: center;
+            padding: 4px;
+            font-size: 0.65rem;
+            color: #b89aa6;
+        }
+
+        .status-msg.error {
+            color: #f077aa;
         }
     </style>
 </head>
@@ -174,16 +198,16 @@
         </div>
 
         <div class="btn-row">
-            <button class="config-btn btn-start" id="btn-start" onclick="startSession()">
+            <button class="config-btn btn-start" id="btn-start">
                 ▶ Lancer le Bingo
             </button>
-            <button class="config-btn btn-stop" id="btn-stop" onclick="endSession()" style="display:none;">
+            <button class="config-btn btn-stop" id="btn-stop" style="display:none;">
                 ⏹ Arrêter
             </button>
         </div>
 
         <div class="winners-section" id="winners-section" style="display:none;">
-            <strong style="color:var(--gold);">🏆 Gagnants :</strong>
+            <strong style="color:#ffd700;">🏆 Gagnants :</strong>
             <div id="live-winners"></div>
         </div>
     </div>
@@ -191,22 +215,20 @@
     <!-- Items Editor -->
     <div class="config-section">
         <h2>📝 Items du Bingo</h2>
-        <p style="font-size:0.65rem; color:var(--text-muted); margin-bottom:6px;">
+        <p style="font-size:0.65rem; color:#a0a0b8; margin-bottom:6px;">
             Un item par ligne. Minimum 24 items nécessaires.
         </p>
 
         <div style="margin-bottom:6px;">
-            <button class="preset-btn" onclick="loadPreset('gaming')">🎮 Preset Gaming</button>
-            <button class="preset-btn" onclick="loadPreset('irl')">💬 Preset IRL</button>
+            <button class="preset-btn" id="btn-preset-gwen">💖 Preset Gwen</button>
         </div>
 
         <textarea class="items-textarea" id="items-textarea"
-            placeholder="Rage quit&#10;Dit 'en vrai'&#10;Meurt au boss&#10;Fait un jump scare&#10;..."
-            oninput="updateItemCount()"></textarea>
+            placeholder="Rage quit&#10;Dit 'en vrai'&#10;Meurt au boss&#10;Fait un jump scare&#10;..."></textarea>
         <div class="item-count" id="item-count">0 / 24 items</div>
 
         <div class="btn-row">
-            <button class="config-btn btn-save" id="btn-save" onclick="saveItems()">
+            <button class="config-btn btn-save" id="btn-save">
                 💾 Sauvegarder
             </button>
         </div>

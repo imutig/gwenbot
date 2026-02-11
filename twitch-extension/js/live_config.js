@@ -3,22 +3,33 @@
  * Handles session management and items editing
  */
 
-const EBS_URL = 'https://xsgwen.fr/bingo';
+const EBS_URL = 'https://gwenbot-production.up.railway.app/bingo';
 let token = null;
 let currentSession = null;
 
 // ==================== Twitch Auth ====================
 
+console.log('🔧 GwenBingo live_config.js loaded');
+console.log('🔧 EBS_URL:', EBS_URL);
+
 window.Twitch.ext.onAuthorized(function (auth) {
     token = auth.token;
-    console.log('🔐 Live Config authorized');
+    console.log('🔐 Live Config authorized, token length:', token ? token.length : 0);
+    console.log('🔐 Channel ID:', auth.channelId);
     loadSession();
     loadSavedItems();
+});
+
+window.Twitch.ext.onError(function (err) {
+    console.error('❌ Twitch Extension error:', err);
 });
 
 // ==================== API ====================
 
 async function apiCall(method, endpoint, body = null) {
+    const url = EBS_URL + endpoint;
+    console.log(`🌐 API ${method} ${url}`);
+
     const options = {
         method,
         headers: {
@@ -28,14 +39,23 @@ async function apiCall(method, endpoint, body = null) {
     };
     if (body) options.body = JSON.stringify(body);
 
-    const response = await fetch(EBS_URL + endpoint, options);
-    return response.json();
+    try {
+        const response = await fetch(url, options);
+        console.log(`🌐 Response: ${response.status} ${response.statusText}`);
+        const data = await response.json();
+        console.log('🌐 Data:', JSON.stringify(data).substring(0, 200));
+        return data;
+    } catch (fetchError) {
+        console.error('🌐 Fetch failed:', fetchError.message);
+        throw fetchError;
+    }
 }
 
 // ==================== Session Management ====================
 
 async function loadSession() {
     try {
+        console.log('📡 Loading session...');
         const data = await apiCall('GET', '/session');
 
         if (data.active) {
@@ -50,7 +70,7 @@ async function loadSession() {
         }
     } catch (error) {
         console.error('Error loading session:', error);
-        setConfigStatus('Erreur de connexion', 'error');
+        setConfigStatus('Erreur de connexion: ' + error.message, 'error');
     }
 }
 
@@ -84,7 +104,6 @@ async function startSession() {
 }
 
 async function endSession() {
-    if (!confirm('Arrêter le bingo en cours ?')) return;
 
     const btn = document.getElementById('btn-stop');
     btn.disabled = true;
@@ -125,10 +144,6 @@ async function saveItems() {
     }
 }
 
-// Make functions available globally for onclick
-window.startSession = startSession;
-window.endSession = endSession;
-window.saveItems = saveItems;
 
 // ==================== UI Helpers ====================
 
@@ -171,8 +186,6 @@ function updateItemCount() {
     el.className = items.length >= 24 ? 'item-count ok' : 'item-count error';
 }
 
-// Make updateItemCount available globally for oninput
-window.updateItemCount = updateItemCount;
 
 function setConfigStatus(msg, type) {
     const el = document.getElementById('config-status');
@@ -203,28 +216,14 @@ function loadSavedItems() {
 // ==================== Presets ====================
 
 const PRESETS = {
-    gaming: [
-        'Rage quit', 'Meurt au boss', 'Dit "en vrai"', 'Fail épique',
-        'Cri de rage', 'Jump scare', 'Bug de jeu', 'Victoire inespérée',
-        'Se perd sur la map', 'Oublie de sauvegarder', 'Tombe dans le vide',
-        'Se fait trahir', 'Lag/déco', 'Clutch moment', 'Speedrun fail',
-        'Découvre un secret', 'Panique totale', 'Danse de la victoire',
-        'Blame le jeu', 'Excuse bidon', 'Stratégie douteuse',
-        'Dit un gros mot', 'Rire nerveux', 'Silence gêné',
-        'Se fait one-shot', 'Fait le mauvais choix', 'Skip le tuto',
-        'Oublie les contrôles', 'Chute ridicule', 'AFK moment'
-    ],
-    irl: [
-        'Dit "du coup"', 'Boit un coup', 'Rit aux éclats', 'Raconte une anecdote',
-        'Fait un compliment', 'Chante', 'Se lève de sa chaise', 'Check son tel',
-        'Dit "attends"', 'Fait un bruit bizarre', 'Parle de bouffe',
-        'Mentionne un viewer', 'Dit merci à un sub', 'Raid reçu',
-        'Regarde l\'heure', 'Dit "je suis fatigué(e)"', 'Fait un facepalm',
-        'Raconte un drama', 'Parle de son chat/chien', 'Oublie ce qu\'elle disait',
-        'Dit "c\'est pas possible"', 'Se moque de quelqu\'un', 'Soupire',
-        'Dit "bref"', 'Prend une pause', 'Change de sujet brusquement',
-        'Reçoit un don', 'Lit un message à voix haute', 'Dit "on s\'en fout"',
-        'Fait du bruit avec son clavier'
+    gwen: [
+        'a mal à la cheville', 'rôte', 'oublie ce qu\'elle voulait dire',
+        'musique trop forte', 'oubli de changer de scène', 'dit qu\'elle est une génie',
+        'danse avec Jennie', 'critique son apparence', 'complimente son apparence',
+        'refait son sourcil', 'est en retard sur le chat', 'perd un truc',
+        'sursaute à cause de jennie', 'met ses lunettes', 'dit "je lis tout guys"',
+        'casque n\'a plus de batterie', 'protège yusur ou gronounours',
+        'insulte mutig ou manu', 'raconte une anecdote', 'a l\'esprit mal placé'
     ]
 };
 
@@ -232,17 +231,28 @@ function loadPreset(name) {
     const preset = PRESETS[name];
     if (!preset) return;
 
-    if (document.getElementById('items-textarea').value.trim()) {
-        if (!confirm('Remplacer les items actuels par le preset ?')) return;
-    }
+    // confirm() is blocked in Twitch extension iframes, skip confirmation
 
     document.getElementById('items-textarea').value = preset.join('\n');
     updateItemCount();
     setConfigStatus(`✅ Preset "${name}" chargé`, '');
 }
 
-// Make loadPreset available globally
-window.loadPreset = loadPreset;
+// Make loadPreset available via addEventListener
+// window.loadPreset = loadPreset; // Not used with inline onclick
+
+// ==================== Event Listeners ====================
+// Twitch CSP blocks inline onclick/oninput handlers
+// All bindings must use addEventListener
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('btn-start').addEventListener('click', startSession);
+    document.getElementById('btn-stop').addEventListener('click', endSession);
+    document.getElementById('btn-save').addEventListener('click', saveItems);
+    document.getElementById('btn-preset-gwen').addEventListener('click', function () { loadPreset('gwen'); });
+    document.getElementById('items-textarea').addEventListener('input', updateItemCount);
+    console.log('🔧 Event listeners attached');
+});
 
 // Poll session status every 15s
 setInterval(loadSession, 15000);
