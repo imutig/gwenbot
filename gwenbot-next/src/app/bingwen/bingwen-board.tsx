@@ -135,7 +135,7 @@ export default function BingwenBoard() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:gap-4 mb-10 select-none">
+            <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:gap-4 mb-16 select-none">
                 {card.grid.map((cell, i) => {
                     const isChecked = card.checked[i]
                     // Determine if validated
@@ -162,7 +162,7 @@ export default function BingwenBoard() {
                             `}
                         >
                             <span className="relative z-10">
-                                {cell.text === '⭐' ? '✨' : cell.text}
+                                {cell.text === '⭐' ? '⭐' : cell.text}
                             </span>
 
                             {/* Validation checkmark - subtle */}
@@ -183,14 +183,14 @@ export default function BingwenBoard() {
                 })}
             </div>
 
-            <div className="flex flex-col gap-8 max-w-md mx-auto w-full">
+            <div className="flex flex-col gap-8 max-w-md mx-auto w-full items-center">
                 <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={claimBingo}
                     disabled={card.has_bingo || claiming}
                     className={`
-                        py-6 rounded-3xl font-black text-2xl tracking-tighter transition-all duration-300
+                        w-full py-6 rounded-3xl font-black text-2xl tracking-tighter transition-all duration-300
                         ${card.has_bingo ? 'bg-green-500 text-white' :
                             'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-xl hover:shadow-pink-500/30'}
                         disabled:opacity-50 disabled:scale-100
