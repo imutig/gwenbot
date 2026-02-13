@@ -36,16 +36,21 @@ export async function GET() {
     }
 
     // Identify user's Twitch ID
-    // In Supabase, the provider's ID is stored in user_metadata for OAuth providers
-    const twitchId = user.identities?.find(id => id.provider === 'twitch')?.id
-        || user.user_metadata.provider_id
-        || user.user_metadata.user_id;
+    // In Supabase, the provider's ID is stored in identities or user_metadata
+    const twitchId = user.user_metadata.provider_id ||
+        user.identities?.find(id => id.provider === 'twitch')?.id ||
+        user.user_metadata.sub ||
+        user.id;
 
     if (!twitchId) {
-        return NextResponse.json({ error: 'Twitch account not found' }, { status: 400 })
+        return NextResponse.json({ error: 'Twitch integration not found' }, { status: 400 })
     }
 
-    const twitchUsername = user.user_metadata.preferred_username || user.user_metadata.user_name || 'Viewer';
+    const twitchUsername = user.user_metadata.preferred_username ||
+        user.user_metadata.user_name ||
+        user.user_metadata.name ||
+        user.user_metadata.nickname ||
+        'Joueur';
 
     try {
         // Get active session
@@ -74,6 +79,45 @@ export async function GET() {
                 active: true,
                 sessionId: session.id,
                 card: existingCard,
+                session: {
+                    items: session.items,
+                    validated_items: session.validated_items || []
+                }
+            })
+        }
+
+        const { data: usernameCard } = await supabaseSecret
+            .from('bingo_cards')
+            .select('*')
+            .eq('session_id', session.id)
+            .ilike('twitch_username', twitchUsername)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .single()
+
+        if (usernameCard) {
+            const cardForUser = usernameCard.twitch_user_id === twitchId
+                ? usernameCard
+                : {
+                    ...usernameCard,
+                    twitch_user_id: twitchId,
+                    twitch_username: twitchUsername
+                }
+
+            if (usernameCard.twitch_user_id !== twitchId) {
+                await supabaseSecret
+                    .from('bingo_cards')
+                    .update({
+                        twitch_user_id: twitchId,
+                        twitch_username: twitchUsername
+                    })
+                    .eq('id', usernameCard.id)
+            }
+
+            return NextResponse.json({
+                active: true,
+                sessionId: session.id,
+                card: cardForUser,
                 session: {
                     items: session.items,
                     validated_items: session.validated_items || []

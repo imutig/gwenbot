@@ -328,6 +328,19 @@ router.post('/session/validate', requireBroadcaster, async (req, res) => {
         const itemName = session.items[itemIndex];
         console.log(`🎯 Item ${validated[itemIndex] ? 'validated' : 'unvalidated'}: "${itemName}"`);
 
+        if (validated[itemIndex]) {
+            try {
+                const { getTwitchClient } = require('../index');
+                const twitchClient = getTwitchClient();
+                if (twitchClient) {
+                    const channel = process.env.TWITCH_CHANNEL || 'xsgwen';
+                    twitchClient.say(channel, `✅ Case bingo validée : ${itemName} ! Rendez-vous sur https://xsgwen.com/bingwen pour jouer !`);  
+                }
+            } catch (e) {
+                console.error('Chat validate announce error:', e);
+            }
+        }
+
         res.json({ success: true, validated_items: validated });
     } catch (error) {
         console.error('❌ Error validating item:', error);

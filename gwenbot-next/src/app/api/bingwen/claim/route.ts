@@ -8,6 +8,8 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const EXTENSION_SECRET = process.env.TWITCH_EXTENSION_SECRET!
 const EXTENSION_CLIENT_ID = process.env.TWITCH_EXTENSION_CLIENT_ID!
 const BROADCASTER_ID = process.env.TWITCH_BROADCASTER_ID!
+const BOT_API_URL = process.env.BOT_API_URL || 'http://localhost:3000'
+const BOT_SECRET = process.env.BOT_SECRET || ''
 
 function getBingoLines(checked: boolean[]) {
     const lines: number[][] = [];
@@ -67,6 +69,26 @@ async function sendPubSubMessage(channelId: string, message: any) {
     }
 }
 
+async function sendBotChatAnnouncement(message: string) {
+    if (!BOT_SECRET) return
+    try {
+        const response = await fetch(`${BOT_API_URL}/api/announce`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-bot-secret': BOT_SECRET
+            },
+            body: JSON.stringify({ message, color: 'purple' })
+        })
+
+        if (!response.ok) {
+            console.error('❌ Bot announce failed:', response.status, await response.text())
+        }
+    } catch (error) {
+        console.error('❌ Bot announce error:', error)
+    }
+}
+
 export async function POST(request: Request) {
     const supabaseSecret = createSupabaseClient(supabaseUrl, supabaseServiceKey)
     const supabase = await createClient()
@@ -102,9 +124,10 @@ export async function POST(request: Request) {
         const session = card.bingo_sessions;
 
         // Verify ownership
-        const twitchId = user.identities?.find(id => id.provider === 'twitch')?.id
-            || user.user_metadata.provider_id
-            || user.user_metadata.user_id;
+        const twitchId = user.user_metadata.provider_id ||
+            user.identities?.find(id => id.provider === 'twitch')?.id ||
+            user.user_metadata.sub ||
+            user.id;
 
         if (card.twitch_user_id !== twitchId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -147,9 +170,14 @@ export async function POST(request: Request) {
 
         // Add to session winners
         const winners = [...(session.winners || [])];
+        const currentUsername = user.user_metadata.preferred_username ||
+            user.user_metadata.user_name ||
+            card.twitch_username ||
+            'Joueur';
+
         const winnerEntry = {
             userId: twitchId,
-            username: card.twitch_username || 'Viewer',
+            username: currentUsername,
             position: winners.length + 1,
             time: new Date().toISOString()
         };
@@ -167,8 +195,14 @@ export async function POST(request: Request) {
             position: winnerEntry.position
         });
 
-        // Optional: Trigger internal announcement on Express server if possible
-        // For now, PubSub handles the on-screen alert for viewers.
+        const pos = winnerEntry.position === 1
+            ? '🥇'
+            : winnerEntry.position === 2
+                ? '🥈'
+                : winnerEntry.position === 3
+                    ? '🥉'
+                    : `#${winnerEntry.position}`
+        await sendBotChatAnnouncement(`🎯 BINGO ! ${pos} ${winnerEntry.username} a fait un bingo ! GG 🎉`)
 
         return NextResponse.json({
             success: true,
