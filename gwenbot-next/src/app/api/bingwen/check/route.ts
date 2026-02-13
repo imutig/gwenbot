@@ -53,9 +53,13 @@ export async function POST(request: Request) {
         }
 
         // Verify ownership (optional but good practice)
-        const twitchId = user.identities?.find(id => id.provider === 'twitch')?.id
-            || user.user_metadata.provider_id
-            || user.user_metadata.user_id;
+        const twitchIdentity = user.identities?.find(id => id.provider === 'twitch')
+        const twitchId = user.user_metadata.provider_id
+            || twitchIdentity?.id
+            || twitchIdentity?.identity_data?.sub
+            || user.user_metadata.sub
+            || user.user_metadata.user_id
+            || user.id;
 
         if (card.twitch_user_id !== twitchId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

@@ -5,6 +5,45 @@ import { NextResponse } from 'next/server'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
+function resolveTwitchIdentity(user: any) {
+    const metadata = user?.user_metadata || {}
+    const identities = Array.isArray(user?.identities) ? user.identities : []
+    const twitchIdentity = identities.find((id: any) => id?.provider === 'twitch')
+    const identityData = twitchIdentity?.identity_data || {}
+
+    const twitchId = metadata.provider_id ||
+        twitchIdentity?.id ||
+        identityData.sub ||
+        metadata.sub ||
+        metadata.user_id ||
+        user?.id
+
+    const usernameCandidates = [
+        metadata.preferred_username,
+        metadata.user_name,
+        metadata.username,
+        metadata.name,
+        metadata.nickname,
+        metadata.slug,
+        identityData.preferred_username,
+        identityData.user_name,
+        identityData.login,
+        identityData.name
+    ]
+
+    const twitchUsername = usernameCandidates
+        .find((value) => typeof value === 'string' && value.trim().length > 0)
+        ?.trim()
+
+    const hasReliableUsername = !!twitchUsername && !['viewer', 'joueur', 'user'].includes(twitchUsername.toLowerCase())
+
+    return {
+        twitchId,
+        twitchUsername: twitchUsername || null,
+        hasReliableUsername
+    }
+}
+
 function generateGrid(items: string[]) {
     const shuffled = [...items].sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, 24);
@@ -35,22 +74,11 @@ export async function GET() {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Identify user's Twitch ID
-    // In Supabase, the provider's ID is stored in identities or user_metadata
-    const twitchId = user.user_metadata.provider_id ||
-        user.identities?.find(id => id.provider === 'twitch')?.id ||
-        user.user_metadata.sub ||
-        user.id;
+    const { twitchId, twitchUsername, hasReliableUsername } = resolveTwitchIdentity(user)
 
     if (!twitchId) {
         return NextResponse.json({ error: 'Twitch integration not found' }, { status: 400 })
     }
-
-    const twitchUsername = user.user_metadata.preferred_username ||
-        user.user_metadata.user_name ||
-        user.user_metadata.name ||
-        user.user_metadata.nickname ||
-        'Joueur';
 
     try {
         // Get active session
@@ -86,14 +114,18 @@ export async function GET() {
             })
         }
 
-        const { data: usernameCard } = await supabaseSecret
-            .from('bingo_cards')
-            .select('*')
-            .eq('session_id', session.id)
-            .ilike('twitch_username', twitchUsername)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .single()
+        let usernameCard: any = null
+        if (hasReliableUsername && twitchUsername) {
+            const { data } = await supabaseSecret
+                .from('bingo_cards')
+                .select('*')
+                .eq('session_id', session.id)
+                .ilike('twitch_username', twitchUsername)
+                .order('created_at', { ascending: true })
+                .limit(1)
+                .single()
+            usernameCard = data
+        }
 
         if (usernameCard) {
             const cardForUser = usernameCard.twitch_user_id === twitchId
@@ -101,7 +133,7 @@ export async function GET() {
                 : {
                     ...usernameCard,
                     twitch_user_id: twitchId,
-                    twitch_username: twitchUsername
+                    twitch_username: twitchUsername || usernameCard.twitch_username
                 }
 
             if (usernameCard.twitch_user_id !== twitchId) {
@@ -109,7 +141,7 @@ export async function GET() {
                     .from('bingo_cards')
                     .update({
                         twitch_user_id: twitchId,
-                        twitch_username: twitchUsername
+                        twitch_username: twitchUsername || usernameCard.twitch_username
                     })
                     .eq('id', usernameCard.id)
             }
@@ -135,7 +167,7 @@ export async function GET() {
             .insert({
                 session_id: session.id,
                 twitch_user_id: twitchId,
-                twitch_username: twitchUsername,
+                twitch_username: twitchUsername || `user_${twitchId}`,
                 grid: grid,
                 checked: checked
             })

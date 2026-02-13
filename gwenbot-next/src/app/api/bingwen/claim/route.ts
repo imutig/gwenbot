@@ -11,6 +11,47 @@ const BROADCASTER_ID = process.env.TWITCH_BROADCASTER_ID!
 const BOT_API_URL = process.env.BOT_API_URL || 'http://localhost:3000'
 const BOT_SECRET = process.env.BOT_SECRET || ''
 
+function resolveTwitchIdentity(user: any) {
+    const metadata = user?.user_metadata || {}
+    const identities = Array.isArray(user?.identities) ? user.identities : []
+    const twitchIdentity = identities.find((id: any) => id?.provider === 'twitch')
+    const identityData = twitchIdentity?.identity_data || {}
+
+    const twitchId = metadata.provider_id ||
+        twitchIdentity?.id ||
+        identityData.sub ||
+        metadata.sub ||
+        metadata.user_id ||
+        user?.id
+
+    const usernameCandidates = [
+        metadata.preferred_username,
+        metadata.user_name,
+        metadata.username,
+        metadata.name,
+        metadata.nickname,
+        metadata.slug,
+        identityData.preferred_username,
+        identityData.user_name,
+        identityData.login,
+        identityData.name
+    ]
+
+    const username = usernameCandidates
+        .find((value) => typeof value === 'string' && value.trim().length > 0)
+        ?.trim()
+
+    return {
+        twitchId,
+        username: username || null
+    }
+}
+
+function isGenericUsername(value?: string | null) {
+    if (!value) return true
+    return ['viewer', 'joueur', 'user'].includes(value.trim().toLowerCase())
+}
+
 function getBingoLines(checked: boolean[]) {
     const lines: number[][] = [];
     // Rows
@@ -124,10 +165,7 @@ export async function POST(request: Request) {
         const session = card.bingo_sessions;
 
         // Verify ownership
-        const twitchId = user.user_metadata.provider_id ||
-            user.identities?.find(id => id.provider === 'twitch')?.id ||
-            user.user_metadata.sub ||
-            user.id;
+        const { twitchId, username } = resolveTwitchIdentity(user)
 
         if (card.twitch_user_id !== twitchId) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -170,10 +208,19 @@ export async function POST(request: Request) {
 
         // Add to session winners
         const winners = [...(session.winners || [])];
-        const currentUsername = user.user_metadata.preferred_username ||
-            user.user_metadata.user_name ||
-            card.twitch_username ||
-            'Joueur';
+        const cardUsername = typeof card.twitch_username === 'string' ? card.twitch_username : null
+        const currentUsername = !isGenericUsername(username)
+            ? username!
+            : !isGenericUsername(cardUsername)
+                ? cardUsername!
+                : `user_${twitchId}`
+
+        if (cardUsername !== currentUsername) {
+            await supabaseSecret
+                .from('bingo_cards')
+                .update({ twitch_username: currentUsername })
+                .eq('id', cardId)
+        }
 
         const winnerEntry = {
             userId: twitchId,
