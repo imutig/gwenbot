@@ -135,7 +135,7 @@ export default function BingwenBoard() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:gap-4 mb-16 select-none">
+            <div className="grid grid-cols-5 gap-3 sm:gap-4 lg:gap-5 mb-20 select-none">
                 {card.grid.map((cell, i) => {
                     const isChecked = card.checked[i]
                     // Determine if validated
@@ -183,24 +183,24 @@ export default function BingwenBoard() {
                 })}
             </div>
 
-            <div className="flex flex-col gap-8 max-w-md mx-auto w-full items-center">
+            <div className="flex flex-col gap-10 w-full items-center">
                 <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={claimBingo}
                     disabled={card.has_bingo || claiming}
                     className={`
-                        w-full py-6 rounded-3xl font-black text-2xl tracking-tighter transition-all duration-300
-                        ${card.has_bingo ? 'bg-green-500 text-white' :
-                            'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-xl hover:shadow-pink-500/30'}
+                        w-full max-w-md py-6 rounded-3xl font-black text-2xl tracking-tighter transition-all duration-300
+                        ${card.has_bingo ? 'bg-green-500 text-white shadow-[0_0_25px_rgba(34,197,94,0.3)]' :
+                            'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-2xl hover:shadow-pink-500/40'}
                         disabled:opacity-50 disabled:scale-100
                     `}
                 >
                     {card.has_bingo ? '🎉 BINGO GAGNÉ !!!' : claiming ? 'CHARGEMENT...' : 'RÉCLAMER BINGO !'}
                 </motion.button>
 
-                <div className="bg-slate-900/40 border border-slate-800/60 p-6 rounded-2xl backdrop-blur-lg">
-                    <p className="text-xs leading-relaxed text-center text-slate-400 uppercase tracking-widest font-black opacity-60">
+                <div className="bg-slate-900/60 border border-slate-800/80 p-8 rounded-3xl backdrop-blur-lg w-full max-w-lg">
+                    <p className="text-[11px] sm:text-xs leading-loose text-center text-slate-400 uppercase tracking-[0.2em] font-black opacity-70 px-4">
                         Coche 5 cases en ligne, colonne ou diagonale.<br />
                         Les cases doivent être <span className="text-green-500">validées en live</span> par Gwen.
                     </p>
