@@ -22,7 +22,7 @@ export default async function BingwenPage() {
     }
 
     return (
-        <div className="animate-fadeIn pb-20">
+        <div className="animate-fadeIn pb-20 flex flex-col items-center justify-center min-h-[80vh]">
             <BingwenBoard />
         </div>
     )
