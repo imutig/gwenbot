@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import confetti from 'canvas-confetti'
 
@@ -22,6 +22,7 @@ export default function BingwenBoard() {
     const [loading, setLoading] = useState(true)
     const [claiming, setClaiming] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const lastToggleTimeRef = useRef(0)
 
     const fetchCard = useCallback(async () => {
         try {
@@ -29,7 +30,14 @@ export default function BingwenBoard() {
             if (!res.ok) throw new Error()
             const data = await res.json()
             if (data.active) {
-                setCard(data.card)
+                // Fix: Only update card from server if we didn't just perform a toggle locally.
+                // This prevents the "deselection" bug caused by stale polling results.
+                setCard(prev => {
+                    if (prev && Date.now() - lastToggleTimeRef.current < 4000) {
+                        return { ...data.card, checked: prev.checked }
+                    }
+                    return data.card
+                })
                 setSession(data.session)
                 setError(null)
             } else {
@@ -52,6 +60,7 @@ export default function BingwenBoard() {
     const toggleCell = async (index: number) => {
         if (!card || card.has_bingo || index === 12) return
 
+        lastToggleTimeRef.current = Date.now()
         const newChecked = [...card.checked]
         newChecked[index] = !newChecked[index]
 
@@ -135,7 +144,7 @@ export default function BingwenBoard() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-5 gap-3 sm:gap-4 lg:gap-5 mb-20 select-none">
+            <div className="grid grid-cols-5 gap-3 sm:gap-4 lg:gap-5 mb-10 select-none">
                 {card.grid.map((cell, i) => {
                     const isChecked = card.checked[i]
                     // Determine if validated
@@ -156,9 +165,9 @@ export default function BingwenBoard() {
                                 relative aspect-square flex items-center justify-center p-2 sm:p-3 rounded-2xl text-xs sm:text-sm lg:text-base leading-snug font-bold text-center transition-all duration-200
                                 ${cell.isFree ? 'bg-pink-500/20 border-pink-400/40' :
                                     isChecked ? 'bg-pink-500/80 border-pink-200 text-white z-10 shadow-lg' :
-                                        'bg-slate-900/40 border-slate-800/60 hover:bg-slate-800/60 text-slate-300'}
+                                        'bg-[var(--bg-input)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)]'}
                                 border-2 backdrop-blur-md
-                                ${cell.isFree ? '' : isValidated ? 'border-green-500/60' : ''}
+                                ${cell.isFree ? '' : isValidated ? 'border-green-500/70 border-[3px]' : ''}
                             `}
                         >
                             <span className="relative z-10">
@@ -183,6 +192,8 @@ export default function BingwenBoard() {
                 })}
             </div>
 
+            <div className="h-12" />
+
             <div className="flex flex-col gap-10 w-full items-center">
                 <motion.button
                     whileHover={{ scale: 1.02 }}
@@ -199,8 +210,8 @@ export default function BingwenBoard() {
                     {card.has_bingo ? '🎉 BINGO GAGNÉ !!!' : claiming ? 'CHARGEMENT...' : 'RÉCLAMER BINGO !'}
                 </motion.button>
 
-                <div className="bg-slate-900/60 border border-slate-800/80 p-8 rounded-3xl backdrop-blur-lg w-full max-w-lg">
-                    <p className="text-[11px] sm:text-xs leading-loose text-center text-slate-400 uppercase tracking-[0.2em] font-black opacity-70 px-4">
+                <div className="bg-[var(--bg-card)] border border-[var(--border-color)] p-8 rounded-3xl backdrop-blur-lg w-full max-w-lg shadow-xl">
+                    <p className="text-[11px] sm:text-xs leading-loose text-center text-[var(--text-muted)] uppercase tracking-[0.2em] font-black opacity-80 px-4">
                         Coche 5 cases en ligne, colonne ou diagonale.<br />
                         Les cases doivent être <span className="text-green-500">validées en live</span> par Gwen.
                     </p>
