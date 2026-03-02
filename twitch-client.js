@@ -167,7 +167,8 @@ class TwitchClient extends EventEmitter {
                     expires_at: new Date(this.botTokenExpiry).toISOString(),
                     updated_at: new Date().toISOString()
                 })
-                .eq('token_type', 'bot');
+                .eq('token_type', 'bot')
+                .eq('user_id', this.botUserId);
 
             console.log('✅ Bot token refreshed');
             return this.botAccessToken;
@@ -268,7 +269,8 @@ class TwitchClient extends EventEmitter {
                     expires_at: new Date(this.broadcasterTokenExpiry).toISOString(),
                     updated_at: new Date().toISOString()
                 })
-                .eq('token_type', 'broadcaster');
+                .eq('token_type', 'broadcaster')
+                .eq('user_id', this.broadcasterUserId);
 
             console.log('✅ Broadcaster token refreshed');
             return this.broadcasterAccessToken;
@@ -276,6 +278,40 @@ class TwitchClient extends EventEmitter {
             console.error('❌ Failed to refresh broadcaster token:', error);
             throw error;
         }
+    }
+
+    /**
+     * Ensure bot token is loaded and valid (refresh if expiring soon)
+     */
+    async ensureBotToken() {
+        if (!this.botAccessToken) {
+            await this.loadBotToken();
+        }
+
+        if (!this.botAccessToken) return null;
+
+        if (this.botTokenExpiry && Date.now() >= this.botTokenExpiry - 300000) {
+            await this.refreshBotToken();
+        }
+
+        return this.botAccessToken;
+    }
+
+    /**
+     * Ensure broadcaster token is loaded and valid (refresh if expiring soon)
+     */
+    async ensureBroadcasterToken() {
+        if (!this.broadcasterAccessToken) {
+            await this.loadBroadcasterToken();
+        }
+
+        if (!this.broadcasterAccessToken) return null;
+
+        if (this.broadcasterTokenExpiry && Date.now() >= this.broadcasterTokenExpiry - 300000) {
+            await this.refreshBroadcasterToken();
+        }
+
+        return this.broadcasterAccessToken;
     }
 
     // ==================== EVENTSUB WEBSOCKET ====================
@@ -528,6 +564,8 @@ class TwitchClient extends EventEmitter {
      * Subscribe bot events (chat messages only - uses bot token + bot session)
      */
     async subscribeToBotEvents() {
+        await this.ensureBotToken();
+
         if (!this.sessionId || !this.botAccessToken) {
             console.error('❌ Cannot subscribe bot events: missing session or token');
             return;
@@ -547,6 +585,8 @@ class TwitchClient extends EventEmitter {
      * Subscribe broadcaster events (subs, follows, raids, cheers - uses broadcaster token + broadcaster session)
      */
     async subscribeToBroadcasterEvents() {
+        await this.ensureBroadcasterToken();
+
         if (!this.broadcasterSessionId || !this.broadcasterAccessToken) {
             console.error('❌ Cannot subscribe broadcaster events: missing session or token');
             return;
@@ -569,7 +609,7 @@ class TwitchClient extends EventEmitter {
     /**
      * Create a single EventSub subscription
      */
-    async createSubscription(sub, token, sessionId) {
+    async createSubscription(sub, token, sessionId, retried = false) {
         try {
             const response = await fetch('https://api.twitch.tv/helix/eventsub/subscriptions', {
                 method: 'POST',
@@ -594,6 +634,26 @@ class TwitchClient extends EventEmitter {
             if (response.ok) {
                 console.log(`✅ Subscribed to ${sub.type}`);
             } else {
+                const isInvalidToken = response.status === 401 || data.message?.toLowerCase().includes('invalid oauth token');
+
+                if (isInvalidToken && !retried) {
+                    try {
+                        if (token === this.broadcasterAccessToken) {
+                            console.warn(`⚠️ Invalid broadcaster token on ${sub.type}, refreshing and retrying...`);
+                            await this.refreshBroadcasterToken();
+                            return await this.createSubscription(sub, this.broadcasterAccessToken, sessionId, true);
+                        }
+
+                        if (token === this.botAccessToken) {
+                            console.warn(`⚠️ Invalid bot token on ${sub.type}, refreshing and retrying...`);
+                            await this.refreshBotToken();
+                            return await this.createSubscription(sub, this.botAccessToken, sessionId, true);
+                        }
+                    } catch (refreshError) {
+                        console.error(`❌ Token refresh failed while subscribing to ${sub.type}:`, refreshError.message || refreshError);
+                    }
+                }
+
                 if (data.message?.includes('scope')) {
                     console.log(`⚠️ Missing scope for ${sub.type}`);
                 } else {
@@ -944,6 +1004,8 @@ class TwitchClient extends EventEmitter {
      * @returns {Array} List of polls
      */
     async getPolls() {
+        await this.ensureBroadcasterToken();
+
         if (!this.broadcasterAccessToken) {
             console.error('❌ Cannot get polls: no broadcaster token');
             return [];
@@ -982,6 +1044,8 @@ class TwitchClient extends EventEmitter {
      * @returns {Object|null} Created poll or null
      */
     async createPoll(title, choices, duration = 60) {
+        await this.ensureBroadcasterToken();
+
         if (!this.broadcasterAccessToken) {
             console.error('❌ Cannot create poll: no broadcaster token');
             return null;
@@ -1031,6 +1095,8 @@ class TwitchClient extends EventEmitter {
      * @returns {Object|null} Ended poll or null
      */
     async endPoll(pollId, archive = false) {
+        await this.ensureBroadcasterToken();
+
         if (!this.broadcasterAccessToken) {
             console.error('❌ Cannot end poll: no broadcaster token');
             return null;
@@ -1082,6 +1148,8 @@ class TwitchClient extends EventEmitter {
      * @returns {boolean} Success
      */
     async updateChannelInfo(title = null, gameId = null) {
+        await this.ensureBroadcasterToken();
+
         if (!this.broadcasterAccessToken) {
             console.error('❌ Cannot update channel: no broadcaster token');
             return false;
@@ -1166,6 +1234,8 @@ class TwitchClient extends EventEmitter {
      * @returns {Array} List of {user_id, user_login, user_name}
      */
     async getChatters() {
+        await this.ensureBroadcasterToken();
+
         if (!this.broadcasterAccessToken) {
             console.error('❌ Cannot get chatters: no broadcaster token');
             return [];
@@ -1190,6 +1260,36 @@ class TwitchClient extends EventEmitter {
 
                 if (!response.ok) {
                     const error = await response.json();
+                    const message = (error?.message || '').toLowerCase();
+
+                    if (response.status === 401 || message.includes('invalid oauth token')) {
+                        console.warn('⚠️ Broadcaster token invalid while fetching chatters, refreshing and retrying once...');
+                        try {
+                            await this.refreshBroadcasterToken();
+                            // Retry same page once with fresh token
+                            const retryResponse = await fetch(url, {
+                                headers: {
+                                    'Client-ID': this.clientId,
+                                    'Authorization': `Bearer ${this.broadcasterAccessToken}`
+                                }
+                            });
+
+                            if (!retryResponse.ok) {
+                                const retryError = await retryResponse.json();
+                                console.error('❌ Failed to get chatters after refresh:', retryError);
+                                return allChatters;
+                            }
+
+                            const retryData = await retryResponse.json();
+                            allChatters.push(...retryData.data);
+                            cursor = retryData.pagination?.cursor || null;
+                            continue;
+                        } catch (refreshError) {
+                            console.error('❌ Failed to refresh broadcaster token for chatters:', refreshError.message || refreshError);
+                            return allChatters;
+                        }
+                    }
+
                     console.error('❌ Failed to get chatters:', error);
                     return allChatters;
                 }
