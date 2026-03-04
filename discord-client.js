@@ -1,16 +1,49 @@
 /**
- * Discord Client for Spotify Presence
+ * Discord Client for Spotify Presence & Planning
  * Connects to Discord to fetch the streamer's currently playing Spotify track
+ * and manage interactive stream planning via slash commands.
  */
 
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
+const {
+    buildPlanningCommand,
+    handlePlanningInteraction,
+    loadPlanningMessageId,
+} = require('./discord-planning');
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
 const DISCORD_STREAMER_ID = process.env.DISCORD_STREAMER_ID;
+const DISCORD_APP_ID = process.env.DISCORD_APP_ID;
 
 let discordClient = null;
 let isReady = false;
+
+/**
+ * Register slash commands with Discord API
+ */
+async function registerSlashCommands() {
+    if (!DISCORD_APP_ID || !DISCORD_GUILD_ID) {
+        console.log('⚠️ DISCORD_APP_ID or DISCORD_GUILD_ID not set, skipping slash command registration');
+        return;
+    }
+
+    const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
+
+    const commands = [
+        buildPlanningCommand().toJSON(),
+    ];
+
+    try {
+        await rest.put(
+            Routes.applicationGuildCommands(DISCORD_APP_ID, DISCORD_GUILD_ID),
+            { body: commands },
+        );
+        console.log('📋 Slash commands registered successfully');
+    } catch (error) {
+        console.error('❌ Failed to register slash commands:', error);
+    }
+}
 
 /**
  * Initialize the Discord client
@@ -30,13 +63,39 @@ async function initDiscordClient() {
         intents: [
             GatewayIntentBits.Guilds,
             GatewayIntentBits.GuildPresences,
-            GatewayIntentBits.GuildMembers
+            GatewayIntentBits.GuildMembers,
         ]
     });
 
-    discordClient.once('ready', () => {
+    discordClient.once('ready', async () => {
         console.log(`🎵 Discord bot connected as ${discordClient.user.tag}`);
         isReady = true;
+
+        // Register slash commands
+        await registerSlashCommands();
+
+        // Load saved planning message ID
+        await loadPlanningMessageId();
+    });
+
+    // Handle all interactions (slash commands, buttons, selects, modals)
+    discordClient.on('interactionCreate', async (interaction) => {
+        try {
+            const handled = await handlePlanningInteraction(interaction);
+            if (!handled) {
+                // Future: route other commands here
+            }
+        } catch (error) {
+            console.error('❌ Error handling interaction:', error);
+            const reply = { content: '❌ Une erreur est survenue.', ephemeral: true };
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply(reply);
+                } else {
+                    await interaction.reply(reply);
+                }
+            } catch { /* interaction expired */ }
+        }
     });
 
     discordClient.on('error', (error) => {
