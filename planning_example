@@ -115,10 +115,10 @@
         </div>
 
         <!-- Contenu du Planning -->
-        <div class="relative z-10 flex flex-col h-full w-full pt-8 px-10">
+        <div class="relative z-10 flex flex-col h-full w-full pt-8 px-6">
             
             <!-- En-tête : Avatar + Titre + Réseaux -->
-            <div class="flex items-center justify-between mb-8">
+            <div class="flex items-center justify-between mb-6">
                 <!-- Avatar et Titre -->
                 <div class="flex items-center gap-6">
                     <div class="w-24 h-24 bg-white rounded-full border-4 border-pastel-accent shadow-kawaii overflow-hidden p-1 relative shrink-0">
@@ -148,7 +148,7 @@
             </div>
 
             <!-- Colonnes des jours (Emploi du temps) -->
-            <div class="grid grid-cols-7 gap-4 flex-1 mb-8">
+            <div class="grid grid-cols-7 gap-2 flex-1 mb-8">
                 
                 <!-- Lundi -->
                 <div class="flex flex-col h-full transform transition duration-300 hover:-translate-y-1">

@@ -460,8 +460,10 @@ async function postPlanningImage(channel) {
         const attachment = new AttachmentBuilder(imageBuffer, { name: 'planning.png' });
 
         const messageContent = {
-            content: '## 📅 Planning de la semaine\n-# *Mis à jour automatiquement — les horaires peuvent changer !*',
+            content: '',
             files: [attachment],
+            embeds: [],
+            components: [],
         };
 
         // Try to edit existing message

@@ -14,6 +14,7 @@ const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Jui
 const TEMPLATE_PATH = path.join(__dirname, 'planning_example');
 let browserPromise = null;
 let templateCache = null;
+const RENDER_SCALE = Math.max(1, parseFloat(process.env.PLANNING_IMAGE_SCALE || '2'));
 
 function getCurrentWeekMonday() {
     const now = new Date();
@@ -42,7 +43,7 @@ function parseDayName(input) {
 function weekLabel(weekStart) {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
-    return `Semaine du ${weekStart.getDate()} au ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]} 🎀`;
+    return `Semaine du ${weekStart.getDate()} au ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]}`;
 }
 
 function loadTemplateHtml() {
@@ -149,14 +150,37 @@ async function generatePlanningImage(streams = [], weekStart = null) {
     const avatarSource = resolveAvatarSource();
 
     const browser = await getBrowser();
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720, deviceScaleFactor: 1 } });
+    const viewportWidth = Math.ceil(1280 * RENDER_SCALE + 32);
+    const viewportHeight = Math.ceil(720 * RENDER_SCALE + 32);
+    const page = await browser.newPage({
+        viewport: {
+            width: viewportWidth,
+            height: viewportHeight,
+            deviceScaleFactor: 1,
+        },
+    });
 
     try {
         const html = loadTemplateHtml();
         await page.setContent(html, { waitUntil: 'networkidle' });
 
-        await page.evaluate(({ dayColumnsHtmlInner, weekTextInner, avatarSourceInner }) => {
-            const grid = document.querySelector('div.grid.grid-cols-7.gap-4.flex-1.mb-8');
+        await page.evaluate(async () => {
+            if (document.fonts?.ready) {
+                await document.fonts.ready;
+            }
+
+            const images = Array.from(document.images || []);
+            await Promise.all(images.map((img) => {
+                if (img.complete) return Promise.resolve();
+                return new Promise((resolve) => {
+                    img.addEventListener('load', resolve, { once: true });
+                    img.addEventListener('error', resolve, { once: true });
+                });
+            }));
+        });
+
+        await page.evaluate(({ dayColumnsHtmlInner, weekTextInner, avatarSourceInner, renderScaleInner }) => {
+            const grid = document.querySelector('#capture-zone .grid.grid-cols-7');
             if (!grid) throw new Error('Grille planning introuvable');
             grid.innerHTML = dayColumnsHtmlInner;
 
@@ -170,16 +194,51 @@ async function generatePlanningImage(streams = [], weekStart = null) {
             if (avatarImg && avatarSourceInner) {
                 avatarImg.src = avatarSourceInner;
             }
-        }, { dayColumnsHtmlInner: dayColumnsHtml, weekTextInner: weekText, avatarSourceInner: avatarSource });
 
-        await page.waitForTimeout(220);
+            if (renderScaleInner > 1) {
+                const body = document.body;
+                const zone = document.getElementById('capture-zone');
+                if (body && zone) {
+                    body.style.justifyContent = 'flex-start';
+                    body.style.alignItems = 'flex-start';
+                    body.style.padding = '12px';
+                    zone.style.transformOrigin = 'top left';
+                    zone.style.transform = `scale(${renderScaleInner})`;
+                    zone.style.margin = '0';
+                }
+            }
+        }, {
+            dayColumnsHtmlInner: dayColumnsHtml,
+            weekTextInner: weekText,
+            avatarSourceInner: avatarSource,
+            renderScaleInner: RENDER_SCALE,
+        });
+
+        await page.waitForTimeout(300);
 
         const zone = await page.$('#capture-zone');
         if (!zone) {
             throw new Error('Capture zone introuvable');
         }
 
-        return await zone.screenshot({ type: 'png' });
+        const box = await page.evaluate(() => {
+            const el = document.getElementById('capture-zone');
+            if (!el) return null;
+            const r = el.getBoundingClientRect();
+            return { x: r.left, y: r.top, width: r.width, height: r.height };
+        });
+        if (!box) throw new Error('Bounding box capture zone introuvable');
+
+        return await page.screenshot({
+            type: 'png',
+            clip: {
+                x: Math.max(0, box.x),
+                y: Math.max(0, box.y),
+                width: Math.min(viewportWidth, box.width),
+                height: Math.min(viewportHeight, box.height),
+            },
+            scale: 'device',
+        });
     } finally {
         await page.close();
     }
