@@ -1,3 +1,33 @@
 # Bot doesn't need special build, just npm
+[phases.setup]
+nixPkgs = [
+	"glib",
+	"nss",
+	"nspr",
+	"atk",
+	"at-spi2-atk",
+	"cups",
+	"dbus",
+	"expat",
+	"libdrm",
+	"gtk3",
+	"pango",
+	"cairo",
+	"alsa-lib",
+	"mesa",
+	"xorg.libX11",
+	"xorg.libXcomposite",
+	"xorg.libXdamage",
+	"xorg.libXext",
+	"xorg.libXfixes",
+	"xorg.libXrandr",
+	"xorg.libxcb",
+	"xorg.libXcursor",
+	"xorg.libXi",
+	"xorg.libXrender",
+	"xorg.libXtst",
+	"xorg.libxkbcommon"
+]
+
 [start]
 cmd = "node index.js"

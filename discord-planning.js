@@ -230,7 +230,7 @@ function buildPlanningCommand() {
  * Handle `/planning` — show the interactive panel
  */
 async function handlePlanningCommand(interaction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const panel = await buildPlanningPanel();
     await interaction.editReply(panel);
 }
@@ -315,7 +315,7 @@ async function handlePublishButton(interaction) {
         return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
         const channel = await interaction.client.channels.fetch(channelId);
@@ -403,7 +403,7 @@ async function handleAddModal(interaction) {
     const jeu = interaction.fields.getTextInputValue('jeu') || null;
     const note = interaction.fields.getTextInputValue('note') || null;
 
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const success = await addStream(dayIndex, heure, fin, jeu, note);
     if (success) {

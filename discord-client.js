@@ -4,7 +4,7 @@
  * and manage interactive stream planning via slash commands.
  */
 
-const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, MessageFlags } = require('discord.js');
 const {
     buildPlanningCommand,
     handlePlanningInteraction,
@@ -67,7 +67,7 @@ async function initDiscordClient() {
         ]
     });
 
-    discordClient.once('ready', async () => {
+    discordClient.once('clientReady', async () => {
         console.log(`🎵 Discord bot connected as ${discordClient.user.tag}`);
         isReady = true;
 
@@ -87,7 +87,7 @@ async function initDiscordClient() {
             }
         } catch (error) {
             console.error('❌ Error handling interaction:', error);
-            const reply = { content: '❌ Une erreur est survenue.', ephemeral: true };
+            const reply = { content: '❌ Une erreur est survenue.', flags: MessageFlags.Ephemeral };
             try {
                 if (interaction.deferred || interaction.replied) {
                     await interaction.editReply(reply);
