@@ -19,7 +19,7 @@ aptPkgs = [
 	"libxfixes3",
 	"libxrandr2",
 	"libgbm1",
-	"libasound2",
+	"libasound2t64",
 	"libx11-6",
 	"libx11-xcb1",
 	"libxcb1",
