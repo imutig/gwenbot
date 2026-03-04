@@ -202,6 +202,10 @@ async function generatePlanningImage(streams = [], weekStart = null) {
                     body.style.justifyContent = 'flex-start';
                     body.style.alignItems = 'flex-start';
                     body.style.padding = '12px';
+                    zone.style.width = '1280px';
+                    zone.style.height = '720px';
+                    zone.style.minWidth = '1280px';
+                    zone.style.minHeight = '720px';
                     zone.style.transformOrigin = 'top left';
                     zone.style.transform = `scale(${renderScaleInner})`;
                     zone.style.margin = '0';
