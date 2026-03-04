@@ -1,6 +1,7 @@
 # Bot doesn't need special build, just npm
 [phases.setup]
 nixPkgs = [
+	"nodejs",
 	"glib",
 	"nss",
 	"nspr",
