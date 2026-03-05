@@ -58,6 +58,33 @@ const ID = {
     MODAL_ADD: 'plan_modal_add_',       // + dayIndex
 };
 
+function getMissingChannelPermissions(channel) {
+    if (!channel || !channel.guild || !channel.guild.members || !channel.permissionsFor) {
+        return [];
+    }
+
+    const me = channel.guild.members.me;
+    if (!me) return [];
+
+    const required = [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.ReadMessageHistory,
+    ];
+
+    const missing = [];
+    const perms = channel.permissionsFor(me);
+
+    if (!perms) return ['Unknown'];
+    if (!perms.has(PermissionFlagsBits.ViewChannel)) missing.push('ViewChannel');
+    if (!perms.has(PermissionFlagsBits.SendMessages)) missing.push('SendMessages');
+    if (!perms.has(PermissionFlagsBits.AttachFiles)) missing.push('AttachFiles');
+    if (!perms.has(PermissionFlagsBits.ReadMessageHistory)) missing.push('ReadMessageHistory');
+
+    return missing;
+}
+
 // ==================== DATABASE HELPERS ====================
 
 async function getWeekStreams() {
@@ -321,7 +348,10 @@ async function handlePublishButton(interaction) {
         const channel = await interaction.client.channels.fetch(channelId);
         if (!channel) throw new Error('Channel introuvable');
 
-        await postPlanningImage(channel);
+        const published = await postPlanningImage(channel);
+        if (!published) {
+            throw new Error('Impossible de publier le planning (voir logs permissions)');
+        }
         await interaction.editReply({ content: '📌 Planning publié/mis à jour dans le salon !' });
     } catch (error) {
         console.error('❌ Error publishing planning:', error);
@@ -454,6 +484,11 @@ async function refreshOriginalPanel(interaction, statusText) {
 
 async function postPlanningImage(channel) {
     try {
+        const missingPerms = getMissingChannelPermissions(channel);
+        if (missingPerms.length > 0) {
+            throw new Error(`Permissions Discord manquantes: ${missingPerms.join(', ')}`);
+        }
+
         const rows = await getWeekStreams();
         const streams = rowsToStreams(rows);
         const imageBuffer = await generatePlanningImage(streams);
@@ -492,7 +527,7 @@ async function postPlanningImage(channel) {
         console.log('📅 Planning image posted in Discord');
         return msg;
     } catch (error) {
-        console.error('❌ Error posting planning image:', error);
+        console.error('❌ Error posting planning image:', error.message || error);
         return null;
     }
 }
