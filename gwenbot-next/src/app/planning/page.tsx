@@ -20,6 +20,8 @@ type WeeklyPlanningResponse = {
 const styles = `
   .planning-page-wrap {
     width: 100%;
+    max-width: 1680px;
+    margin: 0 auto;
   }
   .plan-shell {
     position: relative;
@@ -30,7 +32,8 @@ const styles = `
     box-shadow: 0 20px 50px rgba(255, 182, 193, 0.25);
     background-image: radial-gradient(rgba(255, 182, 193, 0.65) 1.2px, transparent 1.2px);
     background-size: 26px 26px;
-    padding: 1.4rem;
+    padding: 2rem 2rem 2.2rem;
+    min-height: 660px;
   }
   .float-flower {
     position: absolute;
@@ -104,22 +107,18 @@ const styles = `
   }
 
   .plan-grid-wrap {
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 0.35rem;
+    overflow: visible;
   }
-  .plan-grid-wrap::-webkit-scrollbar { height: 8px; }
-  .plan-grid-wrap::-webkit-scrollbar-thumb { background: rgba(216, 112, 147, 0.35); border-radius: 999px; }
   .plan-grid {
     display: grid;
-    grid-template-columns: repeat(7, minmax(165px, 1fr));
-    min-width: 1240px;
-    gap: 0.7rem;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.85rem;
   }
   .day-col {
     display: flex;
     flex-direction: column;
-    min-height: 290px;
+    min-height: 430px;
     animation: cardIn 450ms ease both;
   }
   .day-head {
@@ -156,7 +155,7 @@ const styles = `
     border: 2px solid #ffe4e1;
     border-radius: 0 0 0.9rem 0.9rem;
     background: rgba(255,255,255,0.58);
-    padding: 0.42rem;
+    padding: 0.55rem;
   }
   .stream-card {
     border: 1px solid rgba(255, 182, 193, 0.55);
@@ -168,7 +167,7 @@ const styles = `
     flex-direction: column;
     width: 100%;
     min-height: 0;
-    padding: 0.6rem 0.5rem;
+    padding: 0.75rem 0.6rem;
   }
   .time-pill {
     display: inline-block;
@@ -184,13 +183,13 @@ const styles = `
     color: #d87093;
     font-weight: 700;
     line-height: 1.2;
-    font-size: 0.9rem;
+    font-size: 0.98rem;
     margin: 0;
     overflow-wrap: anywhere;
   }
   .game-note {
     margin-top: 0.35rem;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     color: #7f5c66;
     line-height: 1.25;
     overflow-wrap: anywhere;
@@ -231,23 +230,43 @@ const styles = `
     to { opacity: 1; transform: translateY(0); }
   }
 
-  @media (max-width: 1200px) {
+  @media (max-width: 1450px) {
+    .plan-shell {
+      min-height: 620px;
+      padding: 1.6rem;
+    }
     .plan-grid {
-      grid-template-columns: repeat(7, minmax(160px, 1fr));
-      min-width: 1160px;
+      gap: 0.6rem;
+    }
+    .day-col {
+      min-height: 390px;
     }
   }
+  @media (max-width: 1200px) {
+    .plan-grid {
+      grid-template-columns: repeat(7, minmax(125px, 1fr));
+      gap: 0.5rem;
+    }
+    .day-col { min-height: 350px; }
+  }
   @media (max-width: 768px) {
-    .plan-shell { padding: 1rem; }
+    .plan-shell { padding: 1rem; min-height: 0; }
     .plan-header { flex-direction: column; align-items: flex-start; }
     .brand-box { text-align: left; width: 100%; min-width: 0; }
     .brand-line { justify-content: flex-start; }
+    .plan-grid-wrap {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 0.35rem;
+    }
+    .plan-grid-wrap::-webkit-scrollbar { height: 8px; }
+    .plan-grid-wrap::-webkit-scrollbar-thumb { background: rgba(216, 112, 147, 0.35); border-radius: 999px; }
     .plan-grid {
       grid-template-columns: repeat(7, minmax(150px, 1fr));
       min-width: 1080px;
       gap: 0.55rem;
     }
-    .day-col { min-height: 220px; }
+    .day-col { min-height: 240px; }
   }
 `
 
@@ -304,13 +323,13 @@ export default function PlanningPage() {
                     <div className="plan-header">
                         <div className="header-left">
                         <img
-                          src={process.env.NEXT_PUBLIC_PLANNING_AVATAR_URL || '/jennie/jennie barking mouth shut.png'}
+                          src={process.env.NEXT_PUBLIC_PLANNING_AVATAR_URL || 'https://static-cdn.jtvnw.net/jtv_user_pictures/1efe260a-d1d3-4215-9c9f-5a24aea55625-profile_image-70x70.png'}
                           alt="Avatar"
                           className="avatar"
                           onError={(e) => {
                             const img = e.currentTarget
-                            if (!img.src.includes('/jennie/jennie barking mouth shut.png')) {
-                              img.src = '/jennie/jennie barking mouth shut.png'
+                            if (!img.src.includes('jtv_user_pictures/1efe260a-d1d3-4215-9c9f-5a24aea55625-profile_image-70x70.png')) {
+                              img.src = 'https://static-cdn.jtvnw.net/jtv_user_pictures/1efe260a-d1d3-4215-9c9f-5a24aea55625-profile_image-70x70.png'
                             }
                           }}
                         />
