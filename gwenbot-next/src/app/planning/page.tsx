@@ -18,6 +18,9 @@ type WeeklyPlanningResponse = {
 }
 
 const styles = `
+  .planning-page-wrap {
+    width: 100%;
+  }
   .plan-shell {
     position: relative;
     overflow: hidden;
@@ -87,16 +90,36 @@ const styles = `
     text-align: right;
     min-width: 190px;
   }
+  .brand-line {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.4rem;
+  }
+  .brand-line + .brand-line { margin-top: 0.2rem; }
+  .brand-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+  }
 
+  .plan-grid-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.35rem;
+  }
+  .plan-grid-wrap::-webkit-scrollbar { height: 8px; }
+  .plan-grid-wrap::-webkit-scrollbar-thumb { background: rgba(216, 112, 147, 0.35); border-radius: 999px; }
   .plan-grid {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 0.55rem;
+    grid-template-columns: repeat(7, minmax(165px, 1fr));
+    min-width: 1240px;
+    gap: 0.7rem;
   }
   .day-col {
     display: flex;
     flex-direction: column;
-    min-height: 270px;
+    min-height: 290px;
     animation: cardIn 450ms ease both;
   }
   .day-head {
@@ -141,7 +164,10 @@ const styles = `
     background: #fff;
     box-shadow: 0 2px 6px rgba(255,182,193,0.2);
     text-align: center;
-    min-height: 100%;
+    display: inline-flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 0;
     padding: 0.6rem 0.5rem;
   }
   .time-pill {
@@ -182,7 +208,7 @@ const styles = `
     justify-content: center;
     align-items: center;
   }
-  .zzz-icon { display: flex; align-items: end; gap: 2px; margin-bottom: 0.3rem; }
+  .zzz-icon { display: flex; align-items: end; justify-content: center; width: 100%; gap: 2px; margin: 0 auto 0.3rem auto; line-height: 1; }
   .zzz-icon span:nth-child(1) { font-size: 0.8rem; color: rgba(216,112,147,0.7); font-weight: 700; }
   .zzz-icon span:nth-child(2) { font-size: 1rem; color: rgba(216,112,147,0.8); font-weight: 800; }
   .zzz-icon span:nth-child(3) { font-size: 1.3rem; color: rgba(216,112,147,0.95); font-weight: 800; }
@@ -206,13 +232,21 @@ const styles = `
   }
 
   @media (max-width: 1200px) {
-    .plan-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .plan-grid {
+      grid-template-columns: repeat(7, minmax(160px, 1fr));
+      min-width: 1160px;
+    }
   }
   @media (max-width: 768px) {
     .plan-shell { padding: 1rem; }
     .plan-header { flex-direction: column; align-items: flex-start; }
     .brand-box { text-align: left; width: 100%; min-width: 0; }
-    .plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .brand-line { justify-content: flex-start; }
+    .plan-grid {
+      grid-template-columns: repeat(7, minmax(150px, 1fr));
+      min-width: 1080px;
+      gap: 0.55rem;
+    }
     .day-col { min-height: 220px; }
   }
 `
@@ -261,7 +295,7 @@ export default function PlanningPage() {
     return (
         <>
             <style>{styles}</style>
-            <div className="animate-slideIn">
+        <div className="animate-slideIn planning-page-wrap">
                 <div className="plan-shell">
                     <div className="float-flower" style={{ top: '-18px', left: '-18px', width: '120px', height: '120px' }}>🌸</div>
                     <div className="float-flower f2" style={{ top: '58px', right: '-8px', width: '78px', height: '78px' }}>🌸</div>
@@ -269,15 +303,31 @@ export default function PlanningPage() {
 
                     <div className="plan-header">
                         <div className="header-left">
-                            <img src={process.env.NEXT_PUBLIC_PLANNING_AVATAR_URL || '/jennie/gwen.jpg'} alt="Avatar" className="avatar" />
+                        <img
+                          src={process.env.NEXT_PUBLIC_PLANNING_AVATAR_URL || '/jennie/jennie barking mouth shut.png'}
+                          alt="Avatar"
+                          className="avatar"
+                          onError={(e) => {
+                            const img = e.currentTarget
+                            if (!img.src.includes('/jennie/jennie barking mouth shut.png')) {
+                              img.src = '/jennie/jennie barking mouth shut.png'
+                            }
+                          }}
+                        />
                             <div>
                                 <h1 className="plan-title">Planning de la semaine</h1>
                                 <div className="week-pill">{data ? weekText(data.weekStart, data.weekEnd) : 'Chargement...'}</div>
                             </div>
                         </div>
                         <div className="brand-box">
-                            <div>@xsgwen</div>
-                            <div>twitch.tv/xsgwen</div>
+                        <div className="brand-line">
+                          <svg className="brand-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 8.5c-1.2 0-2.3-.4-3.1-1.2A4.2 4.2 0 0 1 16.7 4v8.1a5.7 5.7 0 1 1-5.7-5.7c.3 0 .7 0 1 .1v3a2.8 2.8 0 1 0 1.7 2.6V0h3a4.2 4.2 0 0 0 4.2 4.2V8.5z"/></svg>
+                          <span>@xsgwen</span>
+                        </div>
+                        <div className="brand-line">
+                          <svg className="brand-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.57 4.71h1.72v5.15h-1.72zm4.72 0H18v5.15h-1.71zM6 0 1.71 4.29v15.43h5.14V24l4.29-4.29h3.43L22.29 12V0Zm14.57 11.14-3.43 3.43h-3.43l-3 3v-3H6.86V1.71h13.71Z"/></svg>
+                          <span>twitch.tv/xsgwen</span>
+                        </div>
                         </div>
                     </div>
 
@@ -285,7 +335,8 @@ export default function PlanningPage() {
                     {!loading && error && <div className="loading">{error}</div>}
 
                     {!loading && !error && data && (
-                        <div className="plan-grid">
+                      <div className="plan-grid-wrap">
+                      <div className="plan-grid">
                             {DAY_NAMES_FULL.map((dayName, index) => {
                                 const stream = data.streams.find((s) => s.dayIndex === index) || null
                                 const streamDate = stream?.streamDate || new Date(new Date(data.weekStart).setDate(new Date(data.weekStart).getDate() + index)).toISOString().split('T')[0]
@@ -323,6 +374,7 @@ export default function PlanningPage() {
                                     </div>
                                 )
                             })}
+                        </div>
                         </div>
                     )}
                 </div>
