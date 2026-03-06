@@ -19,11 +19,9 @@ type WeeklyPlanningResponse = {
 
 const styles = `
   .planning-page-wrap {
-    width: min(96vw, 1760px);
-    margin: 0;
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
+    width: 100%;
+    max-width: 1680px;
+    margin: 0 auto;
   }
   .plan-shell {
     position: relative;
@@ -35,7 +33,7 @@ const styles = `
     background-image: radial-gradient(color-mix(in srgb, var(--pink-main) 35%, transparent 65%) 1.2px, transparent 1.2px);
     background-size: 26px 26px;
     padding: 2rem 2rem 2.2rem;
-    min-height: 720px;
+    min-height: 660px;
   }
   .float-flower {
     position: absolute;
@@ -115,12 +113,12 @@ const styles = `
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     width: 100%;
-    gap: 0.95rem;
+    gap: 0.85rem;
   }
   .day-col {
     display: flex;
     flex-direction: column;
-    min-height: 500px;
+    min-height: 430px;
     animation: cardIn 450ms ease both;
   }
   .day-head {
@@ -251,22 +249,17 @@ const styles = `
 
   @media (max-width: 1450px) {
     .plan-shell {
-      min-height: 660px;
+      min-height: 620px;
       padding: 1.6rem;
     }
     .plan-grid {
       gap: 0.6rem;
     }
     .day-col {
-      min-height: 450px;
+      min-height: 390px;
     }
   }
   @media (max-width: 1200px) {
-    .planning-page-wrap {
-      width: 100%;
-      left: 0;
-      transform: none;
-    }
     .plan-grid {
       grid-template-columns: repeat(7, minmax(125px, 1fr));
       gap: 0.5rem;
