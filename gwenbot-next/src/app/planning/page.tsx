@@ -19,21 +19,23 @@ type WeeklyPlanningResponse = {
 
 const styles = `
   .planning-page-wrap {
-    width: 100%;
-    max-width: 1680px;
-    margin: 0 auto;
+    width: min(96vw, 1760px);
+    margin: 0;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
   }
   .plan-shell {
     position: relative;
     overflow: hidden;
     border-radius: 2rem;
-    border: 2px solid rgba(255, 255, 255, 0.6);
-    background: #fff0f5;
-    box-shadow: 0 20px 50px rgba(255, 182, 193, 0.25);
-    background-image: radial-gradient(rgba(255, 182, 193, 0.65) 1.2px, transparent 1.2px);
+    border: 2px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-card) 88%, white 12%);
+    box-shadow: 0 20px 55px color-mix(in srgb, var(--shadow-color) 78%, transparent 22%);
+    background-image: radial-gradient(color-mix(in srgb, var(--pink-main) 35%, transparent 65%) 1.2px, transparent 1.2px);
     background-size: 26px 26px;
     padding: 2rem 2rem 2.2rem;
-    min-height: 660px;
+    min-height: 720px;
   }
   .float-flower {
     position: absolute;
@@ -60,33 +62,33 @@ const styles = `
     width: 68px;
     height: 68px;
     border-radius: 999px;
-    border: 3px solid #ffb6c1;
+    border: 3px solid color-mix(in srgb, var(--pink-main) 70%, white 30%);
     object-fit: cover;
-    background: #fff;
-    box-shadow: 0 8px 18px rgba(255, 182, 193, 0.4);
+    background: var(--bg-base);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--shadow-color) 85%, transparent 15%);
   }
   .plan-title {
     font-size: clamp(1.35rem, 3vw, 2rem);
     font-weight: 700;
-    color: #d87093;
+    color: var(--pink-dark);
     line-height: 1.1;
   }
   .week-pill {
     margin-top: 0.4rem;
     display: inline-block;
-    background: #fff;
-    color: #5c404c;
-    border: 1px solid #ffe4e1;
+    background: color-mix(in srgb, var(--bg-base) 92%, white 8%);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
     border-radius: 999px;
     font-size: 0.9rem;
     font-weight: 600;
     padding: 0.3rem 0.8rem;
   }
   .brand-box {
-    background: rgba(255, 255, 255, 0.8);
-    border: 2px solid #ffe4e1;
+    background: color-mix(in srgb, var(--bg-card) 88%, white 12%);
+    border: 2px solid var(--border-color);
     border-radius: 1rem;
-    color: #d87093;
+    color: var(--pink-dark);
     font-weight: 700;
     font-size: 0.95rem;
     padding: 0.55rem 0.8rem;
@@ -113,18 +115,18 @@ const styles = `
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     width: 100%;
-    gap: 0.85rem;
+    gap: 0.95rem;
   }
   .day-col {
     display: flex;
     flex-direction: column;
-    min-height: 430px;
+    min-height: 500px;
     animation: cardIn 450ms ease both;
   }
   .day-head {
     position: relative;
-    background: #fff;
-    border: 2px solid #ffe4e1;
+    background: color-mix(in srgb, var(--bg-card) 92%, white 8%);
+    border: 2px solid var(--border-color);
     border-bottom: 0;
     border-radius: 0.9rem 0.9rem 0 0;
     text-align: center;
@@ -138,30 +140,30 @@ const styles = `
     right: 0;
     height: 4px;
     border-radius: 0.8rem 0.8rem 0 0;
-    background: linear-gradient(90deg, #ffb6c1, #f7a9c4);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--pink-main) 70%, white 30%), color-mix(in srgb, var(--pink-dark) 55%, white 45%));
   }
   .day-name {
-    color: #d87093;
+    color: var(--pink-dark);
     font-weight: 700;
     font-size: 0.95rem;
   }
   .day-date {
     font-size: 0.74rem;
-    color: #8f6170;
+    color: var(--text-muted);
     margin-top: 0.1rem;
   }
   .day-body {
     flex: 1;
-    border: 2px solid #ffe4e1;
+    border: 2px solid var(--border-color);
     border-radius: 0 0 0.9rem 0.9rem;
-    background: rgba(255,255,255,0.58);
+    background: color-mix(in srgb, var(--bg-card) 78%, transparent 22%);
     padding: 0.55rem;
   }
   .stream-card {
-    border: 1px solid rgba(255, 182, 193, 0.55);
+    border: 1px solid color-mix(in srgb, var(--pink-main) 45%, transparent 55%);
     border-radius: 0.75rem;
-    background: #fff;
-    box-shadow: 0 2px 6px rgba(255,182,193,0.2);
+    background: color-mix(in srgb, var(--bg-card) 90%, white 10%);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--shadow-color) 70%, transparent 30%);
     text-align: center;
     display: inline-flex;
     flex-direction: column;
@@ -171,8 +173,8 @@ const styles = `
   }
   .time-pill {
     display: inline-block;
-    background: #ffe4e1;
-    color: #5c404c;
+    background: color-mix(in srgb, var(--pink-pastel) 45%, var(--bg-base) 55%);
+    color: var(--text-primary);
     border-radius: 999px;
     font-size: 0.73rem;
     font-weight: 700;
@@ -180,7 +182,7 @@ const styles = `
     margin-bottom: 0.45rem;
   }
   .game-name {
-    color: #d87093;
+    color: var(--pink-dark);
     font-weight: 700;
     line-height: 1.2;
     font-size: 0.98rem;
@@ -190,33 +192,50 @@ const styles = `
   .game-note {
     margin-top: 0.35rem;
     font-size: 0.78rem;
-    color: #7f5c66;
+    color: var(--text-muted);
     line-height: 1.25;
     overflow-wrap: anywhere;
   }
 
   .day-col.rest .day-head {
     border-style: dashed;
-    background: rgba(255,255,255,0.55);
+    background: color-mix(in srgb, var(--bg-card) 70%, transparent 30%);
   }
   .day-col.rest .day-body {
     border-style: dashed;
-    background: rgba(255,182,193,0.22);
+    background: color-mix(in srgb, var(--pink-pastel) 22%, transparent 78%);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
   }
   .zzz-icon { display: flex; align-items: end; justify-content: center; width: 100%; gap: 2px; margin: 0 auto 0.3rem auto; line-height: 1; }
-  .zzz-icon span:nth-child(1) { font-size: 0.8rem; color: rgba(216,112,147,0.7); font-weight: 700; }
-  .zzz-icon span:nth-child(2) { font-size: 1rem; color: rgba(216,112,147,0.8); font-weight: 800; }
-  .zzz-icon span:nth-child(3) { font-size: 1.3rem; color: rgba(216,112,147,0.95); font-weight: 800; }
-  .rest-title { color: #d87093; font-weight: 700; font-size: 0.95rem; }
-  .rest-note { color: rgba(92,64,76,0.72); text-align: center; font-size: 0.72rem; margin-top: 0.3rem; }
+  .zzz-icon span:nth-child(1) { font-size: 0.8rem; color: color-mix(in srgb, var(--pink-dark) 68%, transparent 32%); font-weight: 700; }
+  .zzz-icon span:nth-child(2) { font-size: 1rem; color: color-mix(in srgb, var(--pink-dark) 82%, transparent 18%); font-weight: 800; }
+  .zzz-icon span:nth-child(3) { font-size: 1.3rem; color: color-mix(in srgb, var(--pink-dark) 95%, transparent 5%); font-weight: 800; }
+  .rest-title { color: var(--pink-dark); font-weight: 700; font-size: 0.95rem; }
+  .rest-note { color: color-mix(in srgb, var(--text-primary) 72%, transparent 28%); text-align: center; font-size: 0.72rem; margin-top: 0.3rem; }
 
   .day-col.today .day-head,
   .day-col.today .day-body {
-    box-shadow: 0 0 0 2px rgba(216,112,147,0.3) inset;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--pink-dark) 35%, transparent 65%) inset;
+  }
+
+  [data-theme="dark"] .plan-shell {
+    background: color-mix(in srgb, var(--bg-card) 88%, #1a1520 12%);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(240, 119, 170, 0.1) inset;
+    background-image: radial-gradient(rgba(240, 119, 170, 0.22) 1.2px, transparent 1.2px);
+  }
+  [data-theme="dark"] .brand-box,
+  [data-theme="dark"] .day-head,
+  [data-theme="dark"] .stream-card {
+    background: color-mix(in srgb, var(--bg-card) 88%, #2a2030 12%);
+  }
+  [data-theme="dark"] .day-body {
+    background: color-mix(in srgb, var(--bg-card) 70%, transparent 30%);
+  }
+  [data-theme="dark"] .day-col.rest .day-body {
+    background: rgba(212, 165, 190, 0.13);
   }
 
   .loading { text-align: center; color: var(--text-muted); padding: 2.2rem 0.5rem; }
@@ -232,22 +251,27 @@ const styles = `
 
   @media (max-width: 1450px) {
     .plan-shell {
-      min-height: 620px;
+      min-height: 660px;
       padding: 1.6rem;
     }
     .plan-grid {
       gap: 0.6rem;
     }
     .day-col {
-      min-height: 390px;
+      min-height: 450px;
     }
   }
   @media (max-width: 1200px) {
+    .planning-page-wrap {
+      width: 100%;
+      left: 0;
+      transform: none;
+    }
     .plan-grid {
       grid-template-columns: repeat(7, minmax(125px, 1fr));
       gap: 0.5rem;
     }
-    .day-col { min-height: 350px; }
+    .day-col { min-height: 360px; }
   }
   @media (max-width: 768px) {
     .plan-shell { padding: 1rem; min-height: 0; }
